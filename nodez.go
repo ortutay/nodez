@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -37,6 +38,10 @@ var (
 	bitcoindUpdateTipRE = regexp.MustCompile(
 		`UpdateTip:.*best=([0-9a-f]+).*height=(\d+).*tx=(\d+).*date=(.*) progress`)
 	bitcoindDateLayout = "2006-01-02 15:04:05"
+
+	rpcClient *btcrpcclient.Client
+
+	latestInfoJSON *InfoJSON
 )
 
 func main() {
@@ -70,15 +75,14 @@ func main() {
 		}
 	}
 
-	client, err := btcrpcclient.New(connCfg, nil)
+	rpcClient, err = btcrpcclient.New(connCfg, nil)
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer client.Shutdown()
 
 	// Get the current block count.
 	// TODO(ortutay): if error, probably syncing
-	blockCount, err := client.GetBlockCount()
+	blockCount, err := rpcClient.GetBlockCount()
 	if err != nil {
 		log.Error(err)
 	} else {
@@ -91,13 +95,17 @@ func main() {
 	} else {
 		btcnet = wire.MainNet
 	}
+
 	go bitcoinStream(wire.ProtocolVersion, btcnet)
 	go bitcoindDebugLogStream(*debugLog)
+	go updateNodeInfo()
 
 	r := mux.NewRouter()
 	mux := http.NewServeMux()
 
 	r.Handle("/nodez/wire/stream", Endpoint{Serve: handleWireStream})
+	r.Handle("/nodez/info/json", Endpoint{Serve: handleInfoJSON})
+	r.Handle("/nodez/info/stream", Endpoint{Serve: handleInfoStream})
 	r.Handle("/nodez", Endpoint{Serve: handleHome})
 
 	mux.Handle("/", r)
@@ -163,8 +171,62 @@ func handleWireStream(w http.ResponseWriter, r *http.Request, ctx *Context) erro
 		}
 
 		if err := conn.WriteMessage(websocket.TextMessage, data); err != nil {
-			log.Errorf("couldn't write to websocket: %s", err)
+			return fmt.Errorf("couldn't write to websocket: %s", err)
+		}
+	}
+
+	return nil
+}
+
+type InfoJSON struct {
+	IP                  string
+	TestNet             bool    // getinfo "testnet"
+	Version             int32   // getinfo "version"
+	Height              int32   // getinfo "blocks"
+	Connections         int32   // getinfo "connections"
+	Difficulty          float64 // getinfo "difficulty"
+	HashesPerSec        int64   // getmininginfo "networkhashps"
+	VerificationProgess float64 // getblockchaininfo "verificationprogress"
+	BytesRecv           uint64  // getnettotals "totalbytesrecv"
+	BytesSent           uint64  // getnettotals "totalbytessent"
+}
+
+func handleInfoJSON(w http.ResponseWriter, r *http.Request, ctx *Context) error {
+	infoJSON := latestInfoJSON
+	data, err := json.Marshal(infoJSON)
+	if err != nil {
+		return fmt.Errorf("couldn't marshal JSON %v: %s", infoJSON, err)
+	}
+
+	w.Write(data)
+
+	return nil
+}
+
+func handleInfoStream(w http.ResponseWriter, r *http.Request, ctx *Context) error {
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		return err
+	}
+
+	prevData := []byte("")
+	for {
+		infoJSON := *latestInfoJSON
+
+		data, err := json.Marshal(infoJSON)
+		if err != nil {
+			log.Errorf("couldn't marshal JSON %v: %s", infoJSON, err)
 			continue
+		}
+
+		if bytes.Equal(prevData, data) {
+			continue
+		}
+
+		prevData = data
+
+		if err := conn.WriteMessage(websocket.TextMessage, data); err != nil {
+			return fmt.Errorf("couldn't write to websocket: %s", err)
 		}
 	}
 
@@ -320,11 +382,62 @@ func bitcoindDebugLogStream(debugLog string) {
 					Timestamp: date.Unix(),
 				},
 			}
-			log.Infof("%v %v %v %v", bestHash, height, tx, date)
+			// log.Infof("%v %v %v %v", bestHash, height, tx, date)
 
 			for _, ch := range msgChans {
 				ch <- wireJSON
 			}
 		}
+	}
+}
+
+func nodeInfo() (*InfoJSON, error) {
+	var infoJSON InfoJSON
+
+	info, err := rpcClient.GetInfo()
+	if err != nil {
+		return nil, fmt.Errorf("getinfo: %s", err)
+	}
+
+	miningInfo, err := rpcClient.GetMiningInfo()
+	if err != nil {
+		return nil, fmt.Errorf("getmininginfo: %s", err)
+	}
+
+	// TODO(ortutay): add this to btcrpclient
+	// blockChainInfo, err := rpcClient.GetBlockChainInfo()
+	// if err != nil {
+	// 	return nil, fmt.Errorf("getblockchaininfo: %s", err)
+	// }
+
+	netTotalsInfo, err := rpcClient.GetNetTotals()
+	if err != nil {
+		return nil, fmt.Errorf("getnettotals: %s", err)
+	}
+
+	infoJSON.TestNet = info.TestNet
+	infoJSON.Version = info.ProtocolVersion
+	infoJSON.Height = info.Blocks
+	infoJSON.Connections = info.Connections
+	infoJSON.Difficulty = info.Difficulty
+
+	infoJSON.HashesPerSec = miningInfo.NetworkHashPS
+
+	// infoJSON.VerificationProgess = blockChainInfo.VerificationProgess
+
+	infoJSON.BytesRecv = netTotalsInfo.TotalBytesRecv
+	infoJSON.BytesSent = netTotalsInfo.TotalBytesSent
+
+	return &infoJSON, nil
+}
+
+func updateNodeInfo() {
+	for {
+		infoJSON, err := nodeInfo()
+		if err != nil {
+			log.Error(err)
+		}
+		latestInfoJSON = infoJSON
+		time.Sleep(1000 * time.Millisecond)
 	}
 }

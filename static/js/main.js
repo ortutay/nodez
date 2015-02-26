@@ -1,7 +1,9 @@
 $(document).init(function() {
-    var conn = new WebSocket('ws://' + location.host + '/nodez/wire/stream');
+    var wire = new WebSocket('ws://' + location.host + '/nodez/wire/stream');
+    var info = new WebSocket('ws://' + location.host + '/nodez/info/stream');
 
-    conn.onmessage = handleWireStreamMessage
+    wire.onmessage = handleWireStreamMessage
+    info.onmessage = handleWireStreamMessage
 });
 
 
@@ -26,4 +28,10 @@ function handleWireStreamMessage(e) {
         }
         break;
     }
+}
+
+function handleInfoStreamMessage(e) {
+    d = $.parseJSON(e.data)
+
+    console.log("info: ", d)
 }
