@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os/exec"
 	"bufio"
 	"encoding/json"
 	"flag"
@@ -26,6 +27,7 @@ var (
 	port        = flag.String("port", "8080", "Port to listen on")
 	nodeAddr    = flag.String("node_addr", ":8333", "Bitcoin node address")
 	bitcoinConf = flag.String("bitcoin_conf", "~/.bitcoin/bitcoin.conf", "Bitcoin configuration file")
+	debugLog = flag.String("debug_log", "~/.bitcoin/debug.log", "bitcoind debug log")
 	staticDir   = flag.String("static_dir", ".", "Path to static files")
 	testnet     = flag.Bool("testnet", false, "Connect to testnet")
 )
@@ -34,6 +36,7 @@ func main() {
 	flag.Parse()
 
 	*bitcoinConf = strings.Replace(*bitcoinConf, "~", os.Getenv("HOME"), -1)
+	*debugLog = strings.Replace(*debugLog, "~", os.Getenv("HOME"), -1)
 
 	connCfg := &btcrpcclient.ConnConfig{
 		Host:         "localhost:8332",
@@ -81,7 +84,8 @@ func main() {
 	} else {
 		btcnet = wire.MainNet
 	}
-	go handleBitcoinStream(wire.ProtocolVersion, btcnet)
+	go bitcoinStream(wire.ProtocolVersion, btcnet)
+	go bitcoindDebugLogStream(*debugLog)
 
 	r := mux.NewRouter()
 	mux := http.NewServeMux()
@@ -214,7 +218,7 @@ func isDevMode(r *http.Request) bool {
 	return r.Host == fmt.Sprintf("localhost:%s", *port)
 }
 
-func handleBitcoinStream(pver uint32, btcnet wire.BitcoinNet) {
+func bitcoinStream(pver uint32, btcnet wire.BitcoinNet) {
 	// Try to connect to local bitcoin node
 	conn, err := net.Dial("tcp", *nodeAddr)
 	if err != nil {
@@ -243,5 +247,25 @@ func handleBitcoinStream(pver uint32, btcnet wire.BitcoinNet) {
 		for _, ch := range msgChans {
 			ch <- msg
 		}
+	}
+}
+
+func bitcoindDebugLogStream(debugLog string) {
+	log.Infof("Streaming %v", debugLog)
+	cmd := exec.Command("tail", "-f", debugLog)
+
+	out, err := cmd.StdoutPipe()
+	if err != nil {
+		log.Fatal("Couldn't get stdout for bitcoind debug log: %s", err)
+	}
+
+	if err := cmd.Start(); err != nil {
+		log.Fatal("Couldn't stream bitcoind debug log: %s", err)
+	}
+
+	scanner := bufio.NewScanner(out)
+	for scanner.Scan() {
+		t := scanner.Text()
+		log.Infof("bitcoind debug log: %v", t)
 	}
 }
