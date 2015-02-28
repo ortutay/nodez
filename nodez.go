@@ -138,11 +138,20 @@ func main() {
 type WireJSON struct {
 	Command string `json:"command"`
 
+	// For generic messages
+	Message string `json:"message"`
+
 	// For blockchain sync
 	Sync *SyncJSON `json:"sync"`
 
 	// For "inv" message
-	Inv []InvJSON `json:"inv"`
+	Inv []*InvJSON `json:"inv"`
+
+	// For "addr" message
+	Addresses []*AddrJSON `json:"addresses"`
+
+	// For "block" and "blockheader" messages
+	Header []*BlockHeaderJSON `json:"header"`
 }
 
 type SyncJSON struct {
@@ -154,6 +163,15 @@ type SyncJSON struct {
 
 type InvJSON struct {
 	Type string `json:"type"`
+	Hash string `json:"hash"`
+}
+
+type AddrJSON struct {
+	IP   string `json:"ip"`
+	Port int    `json:"port"`
+}
+
+type BlockHeaderJSON struct {
 	Hash string `json:"hash"`
 }
 
@@ -311,9 +329,34 @@ func msgToJSON(msg wire.Message) (*WireJSON, error) {
 				return nil, fmt.Errorf("unknown inv type: %d", inv.Type)
 			}
 
-			wireMsg.Inv = append(wireMsg.Inv, invMsg)
+			wireMsg.Inv = append(wireMsg.Inv, &invMsg)
 		}
+
+	case *wire.MsgAddr:
+		for _, addr := range msg.AddrList {
+			addrJSON := &AddrJSON{
+				IP:   addr.IP.String(),
+				Port: int(addr.Port),
+			}
+			wireMsg.Addresses = append(wireMsg.Addresses, addrJSON)
+		}
+
+	case *wire.MsgBlock:
+		hash, err := msg.Header.BlockSha()
+		if err != nil {
+			return nil, err
+		}
+		wireMsg.Header = []*BlockHeaderJSON{&BlockHeaderJSON{Hash: hash.String()}}
+
+	case *wire.MsgPing:
+		wireMsg.Message = strconv.Itoa(int(msg.Nonce))
+	case *wire.MsgPong:
+		wireMsg.Message = strconv.Itoa(int(msg.Nonce))
+
+	default:
+		wireMsg.Message = ""
 	}
+
 	return &wireMsg, nil
 }
 
@@ -323,6 +366,7 @@ func bitcoinStream(pver uint32, btcnet wire.BitcoinNet) {
 	if err != nil {
 		log.Fatal(err)
 	}
+	defer conn.Close()
 
 	// Send version message
 	verMsg, err := wire.NewMsgVersionFromConn(conn, 1, 0)

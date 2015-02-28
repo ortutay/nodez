@@ -13,16 +13,42 @@ function handleWireStreamMessage(e) {
     console.log(d)
 
     switch (d.command) {
-    // case "sync":
-    //     item = d.snc
-    //     el = $("#messageStream").prepend("<div class='message-stream-item'>" + item.hash + "</div>");
+    case "sync":
+        return;
+        // item = d.snc
+        // el = $("#messageStream").prepend("<div class='message-stream-item'>" + item.hash + "</div>");
 
     case "inv":
         for (var i = 0; i < d.inv.length; i++) {
             item = d.inv[i]
-            el = $("#messageStream").prepend("<div class='message-stream-item'>" + item.hash + "</div>");
+            el = $("#messageStream").prepend(
+                "<div class='message-stream " + d.command + "'>" + 
+                "<div class='message-stream-cmd'>" + d.command + "</div>" +
+                "<div class='message-stream-type'>" + item.type + "</div>" +
+                "<div class='message-stream-hash'>" +item.hash + "</div>" +
+                "</div>");
         }
         break;
+
+    case "addr":
+        for (var i = 0; i < d.addresses.length; i++) {
+            addr = d.addresses[i]
+            el = $("#messageStream").prepend(
+                "<div class='message-stream'>" + 
+                "<div class='message-stream-cmd'>" + d.command + "</div>" +
+                "<div class='message-stream-addr'>" +
+                    addr.ip + ":" + addr.port +
+                "</div>" +
+                "</div>");
+        }
+        break;
+
+    default:
+        el = $("#messageStream").prepend(
+            "<div class='message-stream'>" + 
+            "<div class='message-stream-cmd'>" + d.command + "</div>" +
+            "<div class='message-stream-msg'>" + d.message + "</div>" +
+            "</div>");
     }
     // Prune messages to avoid using too much memory. CSS overflow is used
     // for styling.
@@ -43,10 +69,16 @@ function handleInfoStreamMessage(e) {
     } else {
         $("#net").html("mainnet");
     }
-    $("#height").html(d.height);
-    $("#difficulty").html(d.difficulty);
-    $("#hashesPerSec").html(d.hashesPerSec);
-    $("#connections").html(d.connections);
-    $("#bytesRecv").html(d.bytesRecv);
-    $("#bytesSent").html(d.bytesSent);
+    $("#height").html(numberWithCommas(d.height));
+    $("#difficulty").html(numberWithCommas(Math.round(d.difficulty)));
+    $("#hashesPerSec").html(numberWithCommas(Math.round(d.hashesPerSec/1e9)) + " GH/sec");
+    $("#connections").html(numberWithCommas(d.connections));
+    $("#bytesRecv").html(numberWithCommas(d.bytesRecv) + " bytes");
+    $("#bytesSent").html(numberWithCommas(d.bytesSent) + " bytes");
+}
+
+function numberWithCommas(x) {
+    var parts = x.toString().split(".");
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    return parts.join(".");
 }

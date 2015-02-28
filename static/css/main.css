@@ -1,0 +1,77 @@
+body {
+    background-color: #333;
+    color: #eee;
+    font-family: Helvetica;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+}
+
+.info {
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    width: 280px;
+    background-color: #444;
+    padding: 10px;
+    border-radius: 6px;
+}
+
+.info-bitcoin-logo {
+    height: 16px;
+    width: 16px;
+}
+
+.info-header {
+    text-align: center;
+    margin-bottom: 16px;
+}
+
+.info-item .label {
+    display: inline-block;
+    width: 120px;
+    text-align: right;
+    color: #999;
+}
+
+.info-item {
+    margin-top: 2px;
+}
+
+.info-item.addr {
+    font-size: 22px;
+    font-weight: bold;
+}
+
+.info-item.net {
+    font-size: 12px;
+    color: #999;
+}
+
+.message-stream-wrapper {
+    padding: 3px 0;
+    font-family: monospace;
+}
+
+.message-stream {
+    display: inline-block;
+    padding: 0 3px;
+    width: 100%;
+}
+
+.message-stream:hover {
+    background-color: #555;
+}
+
+.message-stream div {
+    display: inline-block;
+}
+
+.message-stream-cmd {
+    width: 100px;
+}
+
+.message-stream.inv .message-stream-cmd,
+.message-stream-type {
+    width: 50px;
+}

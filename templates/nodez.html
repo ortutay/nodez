@@ -4,23 +4,48 @@
 
     <script src="//ajax.googleapis.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script>
     <script src="/static/js/main.js"></script>
+    <link rel="stylesheet" type="text/css" href="/static/css/main.css"/>
 
   </head>
 
   <body>
 
-    <div id="info">
-      <div class="info-item"><span id="addr"></span></div>
-      <div class="info-item"><span id="net"></span></div>
-      <div class="info-item">Height: <span id="height"></span></div>
-      <div class="info-item">Difficulty: <span id="difficulty"></span></div>
-      <div class="info-item">Hashes/sec:<span id="hashesPerSec"></span></div>
-      <div class="info-item">Connections: <span id="connections"></span></div>
-      <div class="info-item">Bytes received: <span id="bytesRecv"></span></div>
-      <div class="info-item">Bytes sent: <span id="bytesSent"></span></div>
+    <div class="info">
+      <div class="info-header">
+        <div class="info-item addr">
+          <img class="info-bitcoin-logo" src="/static/images/bitcoin.png"/>
+          <span id="addr">&nbsp;</span>
+        </div>
+        <div class="info-item net"><span id="net">&nbsp;</span></div>
+      </div>
+
+      <div class="info-item">
+        <span class="label">Height:</span>
+        <span id="height"></span>
+      </div>
+      <div class="info-item">
+        <span class="label">Difficulty:</span>
+        <span id="difficulty"></span>
+      </div>
+      <div class="info-item">
+        <span class="label">Hash rate:</span>
+        <span id="hashesPerSec"></span>
+      </div>
+      <div class="info-item">
+        <span class="label">Connections:</span>
+        <span id="connections"></span>
+      </div>
+      <div class="info-item">
+        <span class="label">Received:</span>
+        <span id="bytesRecv"></span>
+      </div>
+      <div class="info-item">
+        <span class="label">Sent:</span>
+        <span id="bytesSent"></span>
+      </div>
     </div>
 
-    <div id="messageStream"></div>
+    <div id="messageStream" class="message-stream-wrapper"></div>
 
   </body>
 </html>
