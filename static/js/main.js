@@ -3,7 +3,7 @@ $(document).init(function() {
     var info = new WebSocket('ws://' + location.host + '/nodez/info/stream');
 
     wire.onmessage = handleWireStreamMessage
-    info.onmessage = handleWireStreamMessage
+    info.onmessage = handleInfoStreamMessage
 });
 
 
@@ -12,15 +12,15 @@ function handleWireStreamMessage(e) {
 
     console.log(d)
 
-    switch (d["Command"]) {
-    case "sync":
-        item = d["Sync"]
-        el = $("#messageStream").prepend("<div class='message-stream-item'>" + item["Hash"] + "</div>");
+    switch (d.command) {
+    // case "sync":
+    //     item = d.snc
+    //     el = $("#messageStream").prepend("<div class='message-stream-item'>" + item.hash + "</div>");
 
     case "inv":
-        for (var i = 0; i < d["Inv"].length; i++) {
-            item = d["Inv"][i]
-            el = $("#messageStream").prepend("<div class='message-stream-item'>" + item["Hash"] + "</div>");
+        for (var i = 0; i < d.inv.length; i++) {
+            item = d.inv[i]
+            el = $("#messageStream").prepend("<div class='message-stream-item'>" + item.hash + "</div>");
         }
         break;
     }
@@ -33,7 +33,20 @@ function handleWireStreamMessage(e) {
 }
 
 function handleInfoStreamMessage(e) {
-    d = $.parseJSON(e.data)
+    d = $.parseJSON(e.data);
 
-    console.log("info: ", d)
+    console.log("info: ", d);
+
+    $("#addr").html(d.ip + ":" + d.port);
+    if (d.testnet) {
+        $("#net").html("testnet");
+    } else {
+        $("#net").html("mainnet");
+    }
+    $("#height").html(d.height);
+    $("#difficulty").html(d.difficulty);
+    $("#hashesPerSec").html(d.hashesPerSec);
+    $("#connections").html(d.connections);
+    $("#bytesRecv").html(d.bytesRecv);
+    $("#bytesSent").html(d.bytesSent);
 }

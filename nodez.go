@@ -41,11 +41,25 @@ var (
 
 	rpcClient *btcrpcclient.Client
 
-	latestInfoJSON *InfoJSON
+	latestInfoJSON InfoJSON
+
+	myIP net.IP
 )
 
 func main() {
 	flag.Parse()
+
+	resp, err := http.Get("http://myexternalip.com/raw")
+	if err != nil {
+		log.Fatal(err)
+	}
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Fatal(err)
+	}
+	myIP = net.ParseIP(strings.TrimSpace(string(body)))
+	log.Infof("My IP: %s", myIP.String())
+	resp.Body.Close()
 
 	*bitcoinConf = strings.Replace(*bitcoinConf, "~", os.Getenv("HOME"), -1)
 	*debugLog = strings.Replace(*debugLog, "~", os.Getenv("HOME"), -1)
@@ -60,6 +74,8 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	defer f.Close()
+
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		t := scanner.Text()
@@ -120,25 +136,25 @@ func main() {
 }
 
 type WireJSON struct {
-	Command string
+	Command string `json:"command"`
 
 	// For blockchain sync
-	Sync *SyncJSON
+	Sync *SyncJSON `json:"sync"`
 
 	// For "inv" message
-	Inv []InvJSON `json:",omitempty"`
+	Inv []InvJSON `json:"inv"`
 }
 
 type SyncJSON struct {
-	Hash      string
-	Height    int
-	Tx        int
-	Timestamp int64
+	Hash      string `json:"hash"`
+	Height    int    `json:"height"`
+	Tx        int    `json:"tx"`
+	Timestamp int64  `json:"timestamp"`
 }
 
 type InvJSON struct {
-	Type string
-	Hash string
+	Type string `json:"type"`
+	Hash string `json:"hash"`
 }
 
 var msgChans = make(map[string]chan *WireJSON)
@@ -179,16 +195,17 @@ func handleWireStream(w http.ResponseWriter, r *http.Request, ctx *Context) erro
 }
 
 type InfoJSON struct {
-	IP                  string
-	TestNet             bool    // getinfo "testnet"
-	Version             int32   // getinfo "version"
-	Height              int32   // getinfo "blocks"
-	Connections         int32   // getinfo "connections"
-	Difficulty          float64 // getinfo "difficulty"
-	HashesPerSec        int64   // getmininginfo "networkhashps"
-	VerificationProgess float64 // getblockchaininfo "verificationprogress"
-	BytesRecv           uint64  // getnettotals "totalbytesrecv"
-	BytesSent           uint64  // getnettotals "totalbytessent"
+	IP                  string  `json:"ip"`
+	Port                int     `json:"port"`
+	TestNet             bool    `json:"testNet"`              // getinfo "testnet"
+	Version             int32   `json:"version"`              // getinfo "version"
+	Height              int32   `json:"height"`               // getinfo "blocks"
+	Connections         int32   `json:"connections"`          // getinfo "connections"
+	Difficulty          float64 `json:"difficulty"`           // getinfo "difficulty"
+	HashesPerSec        int64   `json:"hashesPerSec"`         // getmininginfo "networkhashps"
+	VerificationProgess float64 `json:"verificationProgress"` // getblockchaininfo "verificationprogress"
+	BytesRecv           uint64  `json:"bytesRecv"`            // getnettotals "totalbytesrecv"
+	BytesSent           uint64  `json:"bytesSent"`            // getnettotals "totalbytessent"
 }
 
 func handleInfoJSON(w http.ResponseWriter, r *http.Request, ctx *Context) error {
@@ -211,7 +228,7 @@ func handleInfoStream(w http.ResponseWriter, r *http.Request, ctx *Context) erro
 
 	prevData := []byte("")
 	for {
-		infoJSON := *latestInfoJSON
+		infoJSON := latestInfoJSON
 
 		data, err := json.Marshal(infoJSON)
 		if err != nil {
@@ -394,6 +411,14 @@ func bitcoindDebugLogStream(debugLog string) {
 func nodeInfo() (*InfoJSON, error) {
 	var infoJSON InfoJSON
 
+	infoJSON.IP = myIP.String()
+	s := strings.Split(*nodeAddr, ":")
+	port, err := strconv.ParseInt(s[1], 10, 64)
+	if err != nil {
+		log.Fatal(err)
+	}
+	infoJSON.Port = int(port)
+
 	info, err := rpcClient.GetInfo()
 	if err != nil {
 		return nil, fmt.Errorf("getinfo: %s", err)
@@ -416,7 +441,7 @@ func nodeInfo() (*InfoJSON, error) {
 	}
 
 	infoJSON.TestNet = info.TestNet
-	infoJSON.Version = info.ProtocolVersion
+	infoJSON.Version = info.Version
 	infoJSON.Height = info.Blocks
 	infoJSON.Connections = info.Connections
 	infoJSON.Difficulty = info.Difficulty
@@ -437,7 +462,7 @@ func updateNodeInfo() {
 		if err != nil {
 			log.Error(err)
 		}
-		latestInfoJSON = infoJSON
+		latestInfoJSON = *infoJSON
 		time.Sleep(1000 * time.Millisecond)
 	}
 }
