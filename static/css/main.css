@@ -9,12 +9,13 @@ body {
 
 .info {
     position: absolute;
-    top: 3px;
-    right: 3px;
+    /* top: 3px; */
+    right: 0px;
     width: 280px;
-    background-color: #444;
+		height: 100%;
+    background-color: rgba(30,30,30,.5);
     padding: 10px;
-    border-radius: 6px;
+    /* border-radius: 6px; */
 }
 
 .info-bitcoin-logo {
@@ -71,7 +72,6 @@ body {
     width: 100px;
 }
 
-.message-stream.inv .message-stream-cmd,
 .message-stream-type {
     width: 50px;
 }

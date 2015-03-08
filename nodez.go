@@ -3,11 +3,13 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"html/template"
 	"io/ioutil"
+	"math/rand"
 	"net"
 	"net/http"
 	"os"
@@ -20,8 +22,11 @@ import (
 
 	"code.google.com/p/go-uuid/uuid"
 
+	"github.com/btcsuite/btcd/chaincfg"
+	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
 	"github.com/btcsuite/btcrpcclient"
+	"github.com/btcsuite/btcutil"
 	log "github.com/golang/glog"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
@@ -34,6 +39,8 @@ var (
 	debugLog    = flag.String("debug_log", "~/.bitcoin/debug.log", "bitcoind debug log")
 	staticDir   = flag.String("static_dir", ".", "Path to static files")
 	testnet     = flag.Bool("testnet", false, "Connect to testnet")
+	useIP       = flag.String("use_ip", "", "Use this IP address instead of querying myexternalip.com")
+	fakeStream  = flag.Bool("fake_stream", false, "Send fake data (for testing)")
 
 	bitcoindUpdateTipRE = regexp.MustCompile(
 		`UpdateTip:.*best=([0-9a-f]+).*height=(\d+).*tx=(\d+).*date=(.*) progress`)
@@ -49,17 +56,21 @@ var (
 func main() {
 	flag.Parse()
 
-	resp, err := http.Get("http://myexternalip.com/raw")
-	if err != nil {
-		log.Fatal(err)
+	if *useIP != "" {
+		myIP = net.ParseIP(*useIP)
+	} else {
+		resp, err := http.Get("http://myexternalip.com/raw")
+		if err != nil {
+			log.Fatal(err)
+		}
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			log.Fatal(err)
+		}
+		myIP = net.ParseIP(strings.TrimSpace(string(body)))
+		resp.Body.Close()
 	}
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		log.Fatal(err)
-	}
-	myIP = net.ParseIP(strings.TrimSpace(string(body)))
 	log.Infof("My IP: %s", myIP.String())
-	resp.Body.Close()
 
 	*bitcoinConf = strings.Replace(*bitcoinConf, "~", os.Getenv("HOME"), -1)
 	*debugLog = strings.Replace(*debugLog, "~", os.Getenv("HOME"), -1)
@@ -105,6 +116,14 @@ func main() {
 		log.Infof("Block count: %v", blockCount)
 	}
 
+	// txHash, err := wire.NewShaHashFromStr("752140443f73bc6ed58623d28c82393682f1895ea8ce8aec53ca00f847342a50")
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+	// tx, err := rpcClient.GetTransaction(txHash)
+	// log.Infof("tx: %v %v", tx, err)
+	// return
+
 	var btcnet wire.BitcoinNet
 	if *testnet {
 		btcnet = wire.TestNet3
@@ -112,7 +131,11 @@ func main() {
 		btcnet = wire.MainNet
 	}
 
-	go bitcoinStream(wire.ProtocolVersion, btcnet)
+	if *fakeStream {
+		go fakeBitcoinStream()
+	} else {
+		go bitcoinStream(wire.ProtocolVersion, btcnet)
+	}
 	go bitcoindDebugLogStream(*debugLog)
 	go updateNodeInfo()
 
@@ -136,13 +159,17 @@ func main() {
 }
 
 type WireJSON struct {
-	Command string `json:"command"`
+	Command   string `json:"command"`
+	Timestamp int    `json:"timestamp"`
 
 	// For generic messages
 	Message string `json:"message"`
 
 	// For blockchain sync
 	Sync *SyncJSON `json:"sync"`
+
+	// For "tx" message
+	Tx *TxJSON `json:"tx"`
 
 	// For "inv" message
 	Inv []*InvJSON `json:"inv"`
@@ -159,6 +186,30 @@ type SyncJSON struct {
 	Height    int    `json:"height"`
 	Tx        int    `json:"tx"`
 	Timestamp int64  `json:"timestamp"`
+}
+
+type OutPointJSON struct {
+	Hash  string `json:"string"`
+	Index int    `json:"index"`
+}
+
+type TxInJSON struct {
+	PrevOutPoint *OutPointJSON `json:"prevOutPoint"`
+	Address      string        `json:"address"`
+	ScriptSig    string        `json:"scriptSig"`
+}
+
+type TxOutJSON struct {
+	Value   uint64 `json:"value"`
+	Type    string `json:"type"`
+	Address string `json:"address"`
+	Script  string `json:"script"`
+}
+
+type TxJSON struct {
+	Hash    string       `json:"hash"`
+	Inputs  []*TxInJSON  `json:"inputs"`
+	Outputs []*TxOutJSON `json:"outputs"`
 }
 
 type InvJSON struct {
@@ -348,6 +399,31 @@ func msgToJSON(msg wire.Message) (*WireJSON, error) {
 		}
 		wireMsg.Header = []*BlockHeaderJSON{&BlockHeaderJSON{Hash: hash.String()}}
 
+	case *wire.MsgTx:
+		hash, err := msg.TxSha()
+		if err != nil {
+			return nil, err
+		}
+		wireMsg.Tx = &TxJSON{Hash: hash.String()}
+		for _, txIn := range msg.TxIn {
+			address, err := addressForTx(txIn.PreviousOutPoint.Hash.Bytes())
+			var addressStr string
+			if err != nil {
+				addressStr = ""
+			} else {
+				addressStr = address.EncodeAddress()
+			}
+			txInJSON := TxInJSON{
+				PrevOutPoint: &OutPointJSON{
+					Hash:  txIn.PreviousOutPoint.Hash.String(),
+					Index: int(txIn.PreviousOutPoint.Index),
+				},
+				Address:   addressStr,
+				ScriptSig: hex.EncodeToString(txIn.SignatureScript),
+			}
+			wireMsg.Tx.Inputs = append(wireMsg.Tx.Inputs, &txInJSON)
+		}
+
 	case *wire.MsgPing:
 		wireMsg.Message = strconv.Itoa(int(msg.Nonce))
 	case *wire.MsgPong:
@@ -360,40 +436,139 @@ func msgToJSON(msg wire.Message) (*WireJSON, error) {
 	return &wireMsg, nil
 }
 
-func bitcoinStream(pver uint32, btcnet wire.BitcoinNet) {
-	// Try to connect to local bitcoin node
-	conn, err := net.Dial("tcp", *nodeAddr)
-	if err != nil {
-		log.Fatal(err)
+func writeToChannels(wireJSON *WireJSON) {
+	for _, ch := range msgChans {
+		ch <- wireJSON
 	}
-	defer conn.Close()
+}
 
-	// Send version message
-	verMsg, err := wire.NewMsgVersionFromConn(conn, 1, 0)
+func fakeBitcoinStream() {
+	tx1Hash, err := wire.NewShaHashFromStr("752140443f73bc6ed58623d28c82393682f1895ea8ce8aec53ca00f847342a50")
 	if err != nil {
 		log.Fatal(err)
 	}
-	if err := wire.WriteMessage(conn, verMsg, pver, btcnet); err != nil {
-		log.Fatal(err)
-	}
-	_, _, err = wire.ReadMessage(conn, pver, btcnet)
+
+	tx2Hash, err := wire.NewShaHashFromStr("d58623d28c82393682f1895ea8ce8aec53ca00f847342a50752140443f73bc6e")
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	_, err = wire.NewShaHashFromStr("93682f1895ea8ce8aec53ca00f847342a50752140443f73bc6ed58623d28c823")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	address1, err := btcutil.DecodeAddress("12gpXQVcCL2qhTNQgyLVdCFG2Qs2px98nV", &chaincfg.MainNetParams)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	script1, err := txscript.PayToAddrScript(address1)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	op1 := wire.OutPoint{*tx1Hash, 1}
+	op2 := wire.OutPoint{*tx2Hash, 2}
+
+	hex1, err := hex.DecodeString("1234567890abcdef")
+	if err != nil {
+		log.Fatal(err)
+	}
+	hex2, err := hex.DecodeString("fedcba0987654321")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	txIn1 := wire.NewTxIn(&op1, hex1)
+	txIn2 := wire.NewTxIn(&op2, hex2)
+
+	txOut1 := wire.NewTxOut(1000, script1)
+
+	msgTx1 := wire.NewMsgTx()
+	msgTx1.AddTxIn(txIn1)
+	msgTx1.AddTxIn(txIn2)
+	msgTx1.AddTxOut(txOut1)
+
+	log.Infof("msg tx 1: %v", msgTx1)
 
 	for {
-		msg, _, err := wire.ReadMessage(conn, pver, btcnet)
+		time.Sleep(time.Duration(rand.Uint32()%2000) * time.Millisecond)
+
+		// msgInv := wire.MsgInv{
+		// 	InvList: []*wire.InvVect{
+		// 		&wire.InvVect{wire.InvTypeTx, *tx1Hash},
+		// 		&wire.InvVect{wire.InvTypeTx, *tx2Hash},
+		// 	},
+		// }
+
+		wireJSON, err := msgToJSON(msgTx1)
 		if err != nil {
 			log.Fatal(err)
 		}
 
-		msgJSON, err := msgToJSON(msg)
+		writeToChannels(wireJSON)
+	}
+}
+
+func bitcoinStream(pver uint32, btcnet wire.BitcoinNet) {
+	// Try to connect to local bitcoin node
+	var conn net.Conn
+	var errJSON *WireJSON
+	for {
+		if conn != nil {
+			conn.Close()
+			conn = nil
+		}
+
+		if errJSON != nil {
+			writeToChannels(errJSON)
+			time.Sleep(1 * time.Second)
+			errJSON = nil
+		}
+
+		var err error
+		conn, err = net.Dial("tcp", *nodeAddr)
 		if err != nil {
-			log.Error(err)
+			log.Errorf("bitcoin stream dialing %s: %s", *nodeAddr, err)
+			errJSON = &WireJSON{Command: "error", Message: "bitcoin node unreachable"}
 			continue
 		}
-		for _, ch := range msgChans {
-			ch <- msgJSON
+
+		// Send version message
+		verMsg, err := wire.NewMsgVersionFromConn(conn, 1, 0)
+		if err != nil {
+			log.Errorf("bitcoin node version gave: %s", err)
+			errJSON = &WireJSON{Command: "error", Message: "bitcoin node error"}
+			continue
+		}
+		if err := wire.WriteMessage(conn, verMsg, pver, btcnet); err != nil {
+			log.Errorf("bitcoin node write gave: %s", err)
+			errJSON = &WireJSON{Command: "error", Message: "bitcoin node error"}
+			continue
+		}
+		_, _, err = wire.ReadMessage(conn, pver, btcnet)
+		if err != nil {
+			log.Errorf("bitcoin node read gave: %s", err)
+			errJSON = &WireJSON{Command: "error", Message: "bitcoin node error"}
+			continue
+		}
+
+		for {
+			msg, _, err := wire.ReadMessage(conn, pver, btcnet)
+			if err != nil {
+				log.Errorf("bitcoin node read gave: %s", err)
+				errJSON = &WireJSON{Command: "error", Message: "bitcoin node error"}
+				continue
+			}
+
+			msgJSON, err := msgToJSON(msg)
+			if err != nil {
+				log.Errorf("couldn't convert %v to JSON: %s", msg, err)
+				errJSON = &WireJSON{Command: "error", Message: "serialization error"}
+				continue
+			}
+			writeToChannels(msgJSON)
 		}
 	}
 }
@@ -505,8 +680,19 @@ func updateNodeInfo() {
 		infoJSON, err := nodeInfo()
 		if err != nil {
 			log.Error(err)
+			time.Sleep(1 * time.Second)
+			continue
 		}
 		latestInfoJSON = *infoJSON
 		time.Sleep(1000 * time.Millisecond)
 	}
+}
+
+func addressForTx(txHash []byte) (btcutil.Address, error) {
+	// TODO
+	address, err := btcutil.DecodeAddress("12gpXQVcCL2qhTNQgyLVdCFG2Qs2px98nV", &chaincfg.MainNetParams)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return address, nil
 }

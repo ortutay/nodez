@@ -18,13 +18,20 @@ function handleWireStreamMessage(e) {
         // item = d.snc
         // el = $("#messageStream").prepend("<div class='message-stream-item'>" + item.hash + "</div>");
 
+    case "tx":
+				el = $("#messageStream").prepend(
+						"<div class='message-stream " + d.command + "'>" + 
+						"<div class='message-stream-cmd'>" + d.command + "</div>" +
+						"<div class='message-stream-hash'>" + d.tx.hash + "</div>" +
+						"</div>");
+        break;
+
     case "inv":
         for (var i = 0; i < d.inv.length; i++) {
             item = d.inv[i]
             el = $("#messageStream").prepend(
                 "<div class='message-stream " + d.command + "'>" + 
-                "<div class='message-stream-cmd'>" + d.command + "</div>" +
-                "<div class='message-stream-type'>" + item.type + "</div>" +
+                "<div class='message-stream-cmd'>" + item.type + "</div>" +
                 "<div class='message-stream-hash'>" +item.hash + "</div>" +
                 "</div>");
         }
@@ -61,7 +68,7 @@ function handleWireStreamMessage(e) {
 function handleInfoStreamMessage(e) {
     d = $.parseJSON(e.data);
 
-    console.log("info: ", d);
+    // console.log("info: ", d);
 
     $("#addr").html(d.ip + ":" + d.port);
     if (d.testnet) {
