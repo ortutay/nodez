@@ -12,6 +12,8 @@ function handleWireStreamMessage(e) {
 
     console.log(d)
 
+	  datestr = "3 seconds ago";
+
     switch (d.command) {
     case "sync":
         return;
@@ -20,10 +22,18 @@ function handleWireStreamMessage(e) {
 
     case "tx":
 				el = $("#messageStream").prepend(
-						"<div class='message-stream " + d.command + "'>" + 
-						"<div class='message-stream-cmd'>" + d.command + "</div>" +
-						"<div class='message-stream-hash'>" + d.tx.hash + "</div>" +
-						"</div>");
+            "<div class='message-stream " + d.command + "'>" +
+                "<div class='message-stream-left'>" +
+                    "<div class='message-stream-cmd'>transaction</div>" +
+                    "<div class='message-stream-datetime'>" + datestr + "</div>" +
+                "</div>" +
+                "<div class='message-stream-main'>" +
+                    "<div class='message-stream-tx-details'>" +
+                        d.tx.outputsValue/1e8 + " BTC" +
+                    "</div>" +
+                    "<div class='message-stream-hash'>" + d.tx.hash + "</div>" +
+                "</div>" +
+            "</div>");
         break;
 
     case "inv":

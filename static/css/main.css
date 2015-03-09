@@ -9,7 +9,7 @@ body {
 
 .info {
     position: absolute;
-    /* top: 3px; */
+    top: 0px;
     right: 0px;
     width: 280px;
 		height: 100%;
@@ -49,29 +49,75 @@ body {
     color: #999;
 }
 
-.message-stream-wrapper {
-    padding: 3px 0;
-    font-family: monospace;
-}
+/* .message-stream-wrapper { */
+/*     padding: 3px 0; */
+/*     font-family: monospace; */
+/* } */
+
+/* .message-stream { */
+/*     display: inline-block; */
+/*     padding: 0 3px; */
+/*     width: 100%; */
+/* } */
+
+/* .message-stream:hover { */
+/*     background-color: #555; */
+/* } */
+
+/* .message-stream div { */
+/*     display: inline-block; */
+/* } */
+
+/* .message-stream-cmd { */
+/*     width: 100px; */
+/* } */
+
+/* .message-stream-type { */
+/*     width: 50px; */
+/* } */
+
+
+/* style v2 */
 
 .message-stream {
-    display: inline-block;
-    padding: 0 3px;
-    width: 100%;
+		background-color: #444;
+		border-radius: 4px;
+		margin: 6px;
+		margin-right: 308px;
+		min-width: 800px;
+		white-space: nowrap;
 }
 
 .message-stream:hover {
-    background-color: #555;
+		background-color: #555;
 }
 
-.message-stream div {
-    display: inline-block;
+.message-stream-left {
+		display: inline-block;
+		margin: 4px;
+		margin-right: 10px;
+		width: 120px;
+		font-size: 12px;
+		text-align: right;
+		color: #aaa;
 }
 
-.message-stream-cmd {
-    width: 100px;
+.message-stream-main {
+		display: inline-block;
+		margin: 4px;
+		margin-top: 10px;
+		vertical-align: top;
 }
 
-.message-stream-type {
-    width: 50px;
+.message-stream-hash,
+.message-stream-tx-details{
+		display: inline-block;
+		font-family: monospace;
+		vertical-align: middle;
+}
+
+.message-stream-tx-details {
+		margin-right: 10px;
+		width: 120px;
+		text-align: center;
 }

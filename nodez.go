@@ -195,6 +195,8 @@ type OutPointJSON struct {
 
 type TxInJSON struct {
 	PrevOutPoint *OutPointJSON `json:"prevOutPoint"`
+	Value        uint64        `json:"value"`
+	Type         string        `json:"type"`
 	Address      string        `json:"address"`
 	ScriptSig    string        `json:"scriptSig"`
 }
@@ -210,6 +212,9 @@ type TxJSON struct {
 	Hash    string       `json:"hash"`
 	Inputs  []*TxInJSON  `json:"inputs"`
 	Outputs []*TxOutJSON `json:"outputs"`
+
+	InputsValue  uint64 `json:"inputsValue"`
+	OutputsValue uint64 `json:"outputsValue"`
 }
 
 type InvJSON struct {
@@ -357,6 +362,43 @@ func isDevMode(r *http.Request) bool {
 	return r.Host == fmt.Sprintf("localhost:%s", *port)
 }
 
+func displayAddressFromPkScript(script []byte) (string, error) {
+	scriptClass, addresses, _, err := txscript.ExtractPkScriptAddrs(
+		script, &chaincfg.MainNetParams)
+	if err != nil {
+		return "", fmt.Errorf("couldn't get addresses: %s", err)
+	}
+	if (scriptClass == txscript.PubKeyHashTy ||
+		scriptClass == txscript.ScriptHashTy) && len(addresses) == 1 {
+		return addresses[0].EncodeAddress(), nil
+	}
+	return "", nil
+}
+
+func displayTypeFromPkScript(script []byte) (string, error) {
+	scriptClass, _, _, err := txscript.ExtractPkScriptAddrs(
+		script, &chaincfg.MainNetParams)
+	if err != nil {
+		return "", fmt.Errorf("couldn't get script type: %s", err)
+	}
+	switch scriptClass {
+	case txscript.NonStandardTy:
+		return "non-standard", nil
+	case txscript.PubKeyTy:
+		return "p2pk", nil
+	case txscript.PubKeyHashTy:
+		return "p2pkh", nil
+	case txscript.ScriptHashTy:
+		return "p2sh", nil
+	case txscript.MultiSigTy:
+		return "multi-sig", nil
+	case txscript.NullDataTy:
+		return "data", nil
+	default:
+		return "", fmt.Errorf("unhandled script class: %d", scriptClass)
+	}
+}
+
 func msgToJSON(msg wire.Message) (*WireJSON, error) {
 	var wireMsg WireJSON
 	wireMsg.Command = msg.Command()
@@ -405,23 +447,59 @@ func msgToJSON(msg wire.Message) (*WireJSON, error) {
 			return nil, err
 		}
 		wireMsg.Tx = &TxJSON{Hash: hash.String()}
+
 		for _, txIn := range msg.TxIn {
-			address, err := addressForTx(txIn.PreviousOutPoint.Hash.Bytes())
-			var addressStr string
-			if err != nil {
-				addressStr = ""
-			} else {
-				addressStr = address.EncodeAddress()
+			op := txIn.PreviousOutPoint
+			prevTx, err := getTx(op.Hash.Bytes())
+			if int(op.Index) >= len(prevTx.TxOut) {
+				return nil, fmt.Errorf("expected outpoint %d for tx %s, got %v", op.Index, hash.String(), prevTx.TxOut)
 			}
+			prevOut := prevTx.TxOut[op.Index]
+
+			addressStr, err := displayAddressFromPkScript(prevOut.PkScript)
+			if err != nil {
+				return nil, err
+			}
+
+			typeStr, err := displayTypeFromPkScript(prevOut.PkScript)
+			if err != nil {
+				return nil, err
+			}
+
 			txInJSON := TxInJSON{
 				PrevOutPoint: &OutPointJSON{
-					Hash:  txIn.PreviousOutPoint.Hash.String(),
-					Index: int(txIn.PreviousOutPoint.Index),
+					Hash:  op.Hash.String(),
+					Index: int(op.Index),
 				},
+				Value:     uint64(prevOut.Value),
+				Type:      typeStr,
 				Address:   addressStr,
 				ScriptSig: hex.EncodeToString(txIn.SignatureScript),
 			}
+
 			wireMsg.Tx.Inputs = append(wireMsg.Tx.Inputs, &txInJSON)
+			wireMsg.Tx.InputsValue += txInJSON.Value
+		}
+
+		for _, txOut := range msg.TxOut {
+			addressStr, err := displayAddressFromPkScript(txOut.PkScript)
+			if err != nil {
+				return nil, err
+			}
+
+			typeStr, err := displayTypeFromPkScript(txOut.PkScript)
+			if err != nil {
+				return nil, err
+			}
+
+			txOutJSON := TxOutJSON{
+				Value:   uint64(txOut.Value),
+				Type:    typeStr,
+				Address: addressStr,
+			}
+
+			wireMsg.Tx.Outputs = append(wireMsg.Tx.Outputs, &txOutJSON)
+			wireMsg.Tx.OutputsValue += txOutJSON.Value
 		}
 
 	case *wire.MsgPing:
@@ -468,8 +546,8 @@ func fakeBitcoinStream() {
 		log.Fatal(err)
 	}
 
-	op1 := wire.OutPoint{*tx1Hash, 1}
-	op2 := wire.OutPoint{*tx2Hash, 2}
+	op1 := wire.OutPoint{*tx1Hash, 0}
+	op2 := wire.OutPoint{*tx2Hash, 1}
 
 	hex1, err := hex.DecodeString("1234567890abcdef")
 	if err != nil {
@@ -688,11 +766,51 @@ func updateNodeInfo() {
 	}
 }
 
-func addressForTx(txHash []byte) (btcutil.Address, error) {
+func getTx(txHash []byte) (*wire.MsgTx, error) {
 	// TODO
-	address, err := btcutil.DecodeAddress("12gpXQVcCL2qhTNQgyLVdCFG2Qs2px98nV", &chaincfg.MainNetParams)
+	tx1Hash, err := wire.NewShaHashFromStr("752140443f73bc6ed58623d28c82393682f1895ea8ce8aec53ca00f847342a50")
 	if err != nil {
 		log.Fatal(err)
 	}
-	return address, nil
+
+	tx2Hash, err := wire.NewShaHashFromStr("d58623d28c82393682f1895ea8ce8aec53ca00f847342a50752140443f73bc6e")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	address1, err := btcutil.DecodeAddress("12gpXQVcCL2qhTNQgyLVdCFG2Qs2px98nV", &chaincfg.MainNetParams)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	script1, err := txscript.PayToAddrScript(address1)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	op1 := wire.OutPoint{*tx1Hash, 1}
+	op2 := wire.OutPoint{*tx2Hash, 2}
+
+	hex1, err := hex.DecodeString("1234567890abcdef")
+	if err != nil {
+		log.Fatal(err)
+	}
+	hex2, err := hex.DecodeString("fedcba0987654321")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	txIn1 := wire.NewTxIn(&op1, hex1)
+	txIn2 := wire.NewTxIn(&op2, hex2)
+
+	txOut1 := wire.NewTxOut(1000, script1)
+	txOut2 := wire.NewTxOut(2000, script1)
+
+	msgTx1 := wire.NewMsgTx()
+	msgTx1.AddTxIn(txIn1)
+	msgTx1.AddTxIn(txIn2)
+	msgTx1.AddTxOut(txOut1)
+	msgTx1.AddTxOut(txOut2)
+
+	return msgTx1, nil
 }
