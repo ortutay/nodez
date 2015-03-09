@@ -96,6 +96,21 @@ body {
 		background-color: #555;
 }
 
+.show-details.message-stream {
+		border-top: 1px solid black;
+		background-color: #444;
+		position: absolute;
+		z-index: 100;
+		bottom: 0px;
+		border-radius: 0;
+		margin: 0;
+		width: 100%;
+}
+
+.show-details.message-stream:hover {
+		background-color: #444;
+}
+
 .message-stream-left {
 		display: inline-block;
 		margin: 4px;
@@ -127,9 +142,29 @@ body {
 }
 
 .message-stream-tx-details {
-		display: block;
+		display: none;
 		padding: 10px;
 		border-top: 1px solid #222;
+}
+
+.close-details {
+		display: none;
+		margin: 11px;
+		cursor: pointer;
+		float: right;
+		font-size: 12px;
+}
+
+.close-details:hover {
+		text-decoration: underline;
+}
+
+.show-details .close-details {
+		display: block;
+}
+
+.show-details .message-stream-tx-details {
+		display: block;
 }
 
 .message-stream-tx-ios-wrapper {

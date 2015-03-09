@@ -76,8 +76,8 @@ function handleWireStreamMessage(e) {
 		statsBlock += statFormatFn("Size", d.tx.bytes + " bytes");
 		statsBlock += "</div>";
 
-		el = $("#messageStream").prepend(
-		"<div class='message-stream " + d.command + "'>" +
+		var fullHtml = "<div class='message-stream " + d.command + "'>" +
+			"<div class='close-details'>close</div>" +
 			"<div class='message-stream-left'>" +
 				"<div class='message-stream-cmd'>transaction</div>" +
 				"<div class='message-stream-datetime'>" + datestr + "</div>" +
@@ -92,7 +92,21 @@ function handleWireStreamMessage(e) {
   			iosBlock +
   			statsBlock +
 			"</div>" +
-		"</div>");
+		"</div>";
+		
+		var el = $(fullHtml);
+
+		$("#messageStream").prepend(el);
+
+		el.click(function () {
+			dupe = $(fullHtml);
+			dupe.addClass("show-details");
+			dupe.find(".close-details").click(function () {
+				dupe.remove();
+			})
+			$("body").prepend(dupe);
+		});
+		
     break;
 
   case "inv":
