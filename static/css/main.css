@@ -1,5 +1,5 @@
 body {
-    background-color: #333;
+    background-color: #222;
     color: #eee;
     font-family: Helvetica;
     margin: 0;
@@ -88,6 +88,10 @@ body {
 		white-space: nowrap;
 }
 
+.clearfix {
+		clear: both;
+}
+
 .message-stream:hover {
 		background-color: #555;
 }
@@ -110,14 +114,67 @@ body {
 }
 
 .message-stream-hash,
-.message-stream-tx-details{
+.message-stream-tx-value {
 		display: inline-block;
 		font-family: monospace;
 		vertical-align: middle;
 }
 
-.message-stream-tx-details {
+.message-stream-tx-value {
 		margin-right: 10px;
 		width: 120px;
 		text-align: center;
+}
+
+.message-stream-tx-details {
+		display: block;
+		padding: 10px;
+		border-top: 1px solid #222;
+}
+
+.message-stream-tx-ios-wrapper {
+		white-space: nowrap;
+}
+
+.message-stream-tx-io-arrow {
+		/* display: inline-block; */
+		display: none;
+}
+
+.message-stream-tx-io-header {
+		display: inline-block;
+		width: 50%;
+}
+
+.message-stream-tx-ios {
+		display: inline-block;
+		width: 50%;
+		vertical-align: middle;
+		font-size: 14px;
+		color: #aaa;
+}
+
+.message-stream-tx-io {
+		padding: 1px 0;
+}
+
+.message-stream-tx-stats {
+		margin-top: 10px;
+}
+
+
+.message-stream-tx-stats {
+		display: table;
+}
+
+.message-stream-tx-stat {
+		display: table-row;
+		font-size: 14px;
+		color: #aaa;
+}
+
+.message-stream-tx-stat-label,
+.message-stream-tx-stat-val {
+		display: table-cell;
+		padding: 1px 24px 1px 0
 }

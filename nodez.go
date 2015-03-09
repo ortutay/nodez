@@ -189,7 +189,7 @@ type SyncJSON struct {
 }
 
 type OutPointJSON struct {
-	Hash  string `json:"string"`
+	Hash  string `json:"hash"`
 	Index int    `json:"index"`
 }
 
@@ -215,6 +215,8 @@ type TxJSON struct {
 
 	InputsValue  uint64 `json:"inputsValue"`
 	OutputsValue uint64 `json:"outputsValue"`
+	Fee          uint64 `json:"fee"`
+	Bytes        int    `json:"bytes"`
 }
 
 type InvJSON struct {
@@ -501,6 +503,9 @@ func msgToJSON(msg wire.Message) (*WireJSON, error) {
 			wireMsg.Tx.Outputs = append(wireMsg.Tx.Outputs, &txOutJSON)
 			wireMsg.Tx.OutputsValue += txOutJSON.Value
 		}
+
+		wireMsg.Tx.Fee = wireMsg.Tx.InputsValue - wireMsg.Tx.OutputsValue
+		wireMsg.Tx.Bytes = msg.SerializeSize()
 
 	case *wire.MsgPing:
 		wireMsg.Message = strconv.Itoa(int(msg.Nonce))
