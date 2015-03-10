@@ -6,17 +6,32 @@ $(document).init(function() {
   info.onmessage = handleInfoStreamMessage
 });
 
+function toggleDetail(el, html) {
+	// TODO(ortutay): get fullHtml from el
+	dupe = $(html);
+	dupe.addClass("show-details");
+	dupe.find(".close-details").click(function () {
+		dupe.remove();
+	})
+	$("body").prepend(dupe);
+	if (this.prevDupe) {
+		this.prevDupe.remove();
+	}
+	this.prevDupe = dupe;
+}
+
 function formatStatsBlock(data) {
 	var statsBlock = "<div class='message-stream-tx-stats'>";
 	statsBlock += "<div class='message-stream-tx-stats-header'>Details</div>";
 	for (i = 0; i < data.length; i += 2) {
 		var label = data[i];
 		var val = data[i+1];
-		statsBlock = "<div class='message-stream-tx-stat'>";
+		statsBlock += "<div class='message-stream-tx-stat'>";
 		statsBlock += "<div class='message-stream-tx-stat-label'>" + label + "</div>";
 		statsBlock += "<div class='message-stream-tx-stat-val'>" + val + "</div>";
 		statsBlock += "</div>";
 	}
+	return statsBlock;
 }
 
 function handleWireStreamMessage(e) {
@@ -102,15 +117,7 @@ function handleWireStreamMessage(e) {
 
 		$("#messageStream").prepend(el);
 
-		el.click(function () {
-			// TODO(ortutay): get fullHtml from el
-			dupe = $(fullHtml);
-			dupe.addClass("show-details");
-			dupe.find(".close-details").click(function () {
-				dupe.remove();
-			})
-			$("body").prepend(dupe);
-		});
+		el.click(function () { toggleDetail(el, fullHtml) });
 		
     break;
 
@@ -140,16 +147,8 @@ function handleWireStreamMessage(e) {
 		var el = $(fullHtml);
 
 		$("#messageStream").prepend(el);
-		
-		el.click(function () {
-			// TODO(ortutay): get fullHtml from el
-			dupe = $(fullHtml);
-			dupe.addClass("show-details");
-			dupe.find(".close-details").click(function () {
-				dupe.remove();
-			})
-			$("body").prepend(dupe);
-		});
+
+		el.click(function () { toggleDetail(el, fullHtml) });
 
 		break;
 

@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"html/template"
 	"io/ioutil"
-	"math/rand"
 	"net"
 	"net/http"
 	"os"
@@ -171,6 +170,9 @@ type WireJSON struct {
 	// For "tx" message
 	Tx *TxJSON `json:"tx"`
 
+	// For "block" message
+	Block *BlockJSON `json:"block"`
+
 	// For "inv" message
 	Inv []*InvJSON `json:"inv"`
 
@@ -178,7 +180,7 @@ type WireJSON struct {
 	Addresses []*AddrJSON `json:"addresses"`
 
 	// For "block" and "blockheader" messages
-	Header []*BlockHeaderJSON `json:"header"`
+	// Header []*BlockHeaderJSON `json:"header"`
 }
 
 type SyncJSON struct {
@@ -229,6 +231,13 @@ type AddrJSON struct {
 	Port int    `json:"port"`
 }
 
+type BlockJSON struct {
+	Hash            string `json:"hash"`
+	Height          int    `json:"height"`
+	Bytes           int    `json:"bytes"`
+	NumTransactions int    `json:"numTransactions"`
+}
+
 type BlockHeaderJSON struct {
 	Hash string `json:"hash"`
 }
@@ -247,6 +256,8 @@ func handleWireStream(w http.ResponseWriter, r *http.Request, ctx *Context) erro
 	ch := make(chan *WireJSON)
 	msgChans[id] = ch
 	defer func() {
+		msgChansLock.Lock()
+		defer msgChansLock.Unlock()
 		delete(msgChans, id)
 		close(ch)
 		conn.Close()
@@ -441,7 +452,13 @@ func msgToJSON(msg wire.Message) (*WireJSON, error) {
 		if err != nil {
 			return nil, err
 		}
-		wireMsg.Header = []*BlockHeaderJSON{&BlockHeaderJSON{Hash: hash.String()}}
+		block := btcutil.NewBlock(msg)
+		wireMsg.Block = &BlockJSON{
+			Hash:            hash.String(),
+			Height:          int(block.Height()),
+			Bytes:           msg.SerializeSize(),
+			NumTransactions: len(msg.Transactions),
+		}
 
 	case *wire.MsgTx:
 		hash, err := msg.TxSha()
@@ -520,9 +537,12 @@ func msgToJSON(msg wire.Message) (*WireJSON, error) {
 }
 
 func writeToChannels(wireJSON *WireJSON) {
+	msgChansLock.Lock()
 	for _, ch := range msgChans {
+		log.Infof("writing %v to %v", wireJSON, ch)
 		ch <- wireJSON
 	}
+	msgChansLock.Unlock()
 }
 
 func fakeBitcoinStream() {
@@ -575,8 +595,24 @@ func fakeBitcoinStream() {
 
 	log.Infof("msg tx 1: %v", msgTx1)
 
+	prevBlockHash, err := wire.NewShaHashFromStr("000000008c82393682f1895ea8ce8aec53ca00f847342a50752140443f73bc6e")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	merkleRootHash, err := wire.NewShaHashFromStr("40443f73bc6ed58623d28c82393682f1895ea8ce8aec53ca00f847342a507521")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	header := wire.NewBlockHeader(prevBlockHash, merkleRootHash, 32, 1)
+	msgBlock := wire.NewMsgBlock(header)
+	msgBlock.AddTransaction(msgTx1)
+
+	log.Infof("block: %v", msgBlock)
+
 	for {
-		time.Sleep(time.Duration(rand.Uint32()%2000) * time.Millisecond)
+		time.Sleep(2000 * time.Millisecond)
 
 		// msgInv := wire.MsgInv{
 		// 	InvList: []*wire.InvVect{
@@ -585,12 +621,17 @@ func fakeBitcoinStream() {
 		// 	},
 		// }
 
-		wireJSON, err := msgToJSON(msgTx1)
+		txJSON, err := msgToJSON(msgTx1)
 		if err != nil {
 			log.Fatal(err)
 		}
+		writeToChannels(txJSON)
 
-		writeToChannels(wireJSON)
+		blockJSON, err := msgToJSON(msgBlock)
+		if err != nil {
+			log.Fatal(err)
+		}
+		writeToChannels(blockJSON)
 	}
 }
 
