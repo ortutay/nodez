@@ -22,7 +22,7 @@ function toggleDetail(el, html) {
 
 function formatStatsBlock(data) {
 	var statsBlock = "<div class='message-stream-tx-stats'>";
-	statsBlock += "<div class='message-stream-tx-stats-header'>Details</div>";
+	statsBlock += "<div class='message-stream-tx-header'>Details</div>";
 	for (i = 0; i < data.length; i += 2) {
 		var label = data[i];
 		var val = data[i+1];
@@ -38,8 +38,6 @@ function handleWireStreamMessage(e) {
   d = $.parseJSON(e.data)
 
   console.log(d)
-
-	datestr = "3 seconds ago";
 
   switch (d.command) {
   case "sync":
@@ -80,8 +78,8 @@ function handleWireStreamMessage(e) {
 		
     var iosBlock = "<div class='message-stream-tx-ios-wrapper'>";
 		iosBlock += "<div class='message-stream-tx-io-headers'>";
-		iosBlock += "<div class='message-stream-tx-io-header'>Inputs</div>";
-		iosBlock += "<div class='message-stream-tx-io-header'>Outputs</div>";
+		iosBlock += "<div class='message-stream-tx-header'>Inputs</div>";
+		iosBlock += "<div class='message-stream-tx-header'>Outputs</div>";
 		iosBlock += "</div>";
 		iosBlock += inputsOutputsFormatFn(d.tx.inputs);
 		iosBlock += "<div class='message-stream-tx-io-arrow'> => </div>";
@@ -97,15 +95,10 @@ function handleWireStreamMessage(e) {
 
 		var fullHtml = "<div class='message-stream " + d.command + "'>" +
 			"<div class='close-details'>close</div>" +
-			"<div class='message-stream-left'>" +
-				"<div class='message-stream-cmd'>transaction</div>" +
-				"<div class='message-stream-datetime'>" + datestr + "</div>" +
-			"</div>" +
 			"<div class='message-stream-main'>" +
-				"<div class='message-stream-tx-value'>" +
-				  s2btc(d.tx.outputsValue) +
-				"</div>" +
-				"<div class='message-stream-hash'>" + d.tx.hash + "</div>" +
+				  d.dateStr + " " +
+				  s2btc(d.tx.outputsValue) + " " +
+				  d.tx.hash + " " +
 			"</div>" +
 			"<div class='message-stream-tx-details'>" +
   			iosBlock +
@@ -122,28 +115,32 @@ function handleWireStreamMessage(e) {
     break;
 
 	case "block":
+		var sizeStr = "";
+		if (d.block.bytes > 1000) {
+			sizeStr = d.block.bytes/1000 + " KB";
+		} else {
+			sizeStr = d.block.bytes + " bytes";
+		}
+		statsBlock = formatStatsBlock([
+			"Number of transactions", d.block.numTransactions,
+			"Height", d.block.height,
+			"Size", sizeStr,
+		])
+
 		var fullHtml = "<div class='message-stream " + d.command + "'>" +
 			"<div class='close-details'>close</div>" +
-			"<div class='message-stream-left'>" +
-				"<div class='message-stream-cmd'>block</div>" +
-				"<div class='message-stream-datetime'>" + datestr + "</div>" +
-			"</div>" +
 			"<div class='message-stream-main'>" +
 			  "<div class='message-stream-tx-value'>" +
-			    "xxxxxxx" + 
+				  d.dateStr + " " +
+				  "Block #" + d.block.height + " " +
+				  d.block.hash + " " +
 				"</div>" +
-				"<div class='message-stream-hash'>" + d.block.hash + "</div>" +
 			"</div>" +
 			"<div class='message-stream-tx-details'>" +
-			  "block" + 
+			  statsBlock +
 			"</div>" +
 		"</div>";
 
-		statsBlock = formatStatsBlock([
-			"Number of transactions", d.block.numTransactions,
-			"Size", d.block.bytes + " bytes",
-		])
-		
 		var el = $(fullHtml);
 
 		$("#messageStream").prepend(el);

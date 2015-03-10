@@ -159,7 +159,8 @@ func main() {
 
 type WireJSON struct {
 	Command   string `json:"command"`
-	Timestamp int    `json:"timestamp"`
+	Timestamp int64  `json:"timestamp"`
+	DateStr   string `json:"dateStr"`
 
 	// For generic messages
 	Message string `json:"message"`
@@ -253,14 +254,14 @@ func handleWireStream(w http.ResponseWriter, r *http.Request, ctx *Context) erro
 
 	msgChansLock.Lock()
 	id := uuid.New()
-	ch := make(chan *WireJSON)
+	ch := make(chan *WireJSON, 10)
 	msgChans[id] = ch
 	defer func() {
 		msgChansLock.Lock()
-		defer msgChansLock.Unlock()
 		delete(msgChans, id)
 		close(ch)
 		conn.Close()
+		msgChansLock.Unlock()
 	}()
 	msgChansLock.Unlock()
 
@@ -414,6 +415,11 @@ func displayTypeFromPkScript(script []byte) (string, error) {
 
 func msgToJSON(msg wire.Message) (*WireJSON, error) {
 	var wireMsg WireJSON
+
+	now := time.Now()
+	wireMsg.Timestamp = now.Unix()
+	wireMsg.DateStr = now.Format("2006-01-02 3:04:05")
+
 	wireMsg.Command = msg.Command()
 	switch msg := msg.(type) {
 	case *wire.MsgInv:
@@ -539,7 +545,6 @@ func msgToJSON(msg wire.Message) (*WireJSON, error) {
 func writeToChannels(wireJSON *WireJSON) {
 	msgChansLock.Lock()
 	for _, ch := range msgChans {
-		log.Infof("writing %v to %v", wireJSON, ch)
 		ch <- wireJSON
 	}
 	msgChansLock.Unlock()
@@ -801,12 +806,19 @@ func nodeInfo() (*InfoJSON, error) {
 
 func updateNodeInfo() {
 	for {
-		infoJSON, err := nodeInfo()
-		if err != nil {
-			log.Error(err)
-			time.Sleep(1 * time.Second)
-			continue
+		// infoJSON, err := nodeInfo()
+		// if err != nil {
+		// 	log.Error(err)
+		// 	time.Sleep(1 * time.Second)
+		// 	continue
+		// }
+
+		// For testing
+		infoJSON := &InfoJSON{
+			IP:   *useIP,
+			Port: 8080,
 		}
+
 		latestInfoJSON = *infoJSON
 		time.Sleep(1000 * time.Millisecond)
 	}
