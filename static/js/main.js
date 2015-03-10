@@ -6,6 +6,18 @@ $(document).init(function() {
   info.onmessage = handleInfoStreamMessage
 });
 
+function formatStatsBlock(data) {
+	var statsBlock = "<div class='message-stream-tx-stats'>";
+	statsBlock += "<div class='message-stream-tx-stats-header'>Details</div>";
+	for (i = 0; i < data.length; i += 2) {
+		var label = data[i];
+		var val = data[i+1];
+		statsBlock = "<div class='message-stream-tx-stat'>";
+		statsBlock += "<div class='message-stream-tx-stat-label'>" + label + "</div>";
+		statsBlock += "<div class='message-stream-tx-stat-val'>" + val + "</div>";
+		statsBlock += "</div>";
+	}
+}
 
 function handleWireStreamMessage(e) {
   d = $.parseJSON(e.data)
@@ -61,20 +73,12 @@ function handleWireStreamMessage(e) {
 		iosBlock += inputsOutputsFormatFn(d.tx.outputs);
 		iosBlock += "</div>";
 
-		function statFormatFn(label, val) {
-			block = "<div class='message-stream-tx-stat'>";
-			block += "<div class='message-stream-tx-stat-label'>" + label + "</div>";
-			block += "<div class='message-stream-tx-stat-val'>" + val + "</div>";
-			block += "</div>";
-			return block;
-		}
-		var statsBlock = "<div class='message-stream-tx-stats'>";
-		statsBlock += "<div class='message-stream-tx-stats-header'>Details</div>";
-		statsBlock += statFormatFn("Inputs", s2btc(d.tx.inputsValue));
-		statsBlock += statFormatFn("Outputs", s2btc(d.tx.outputsValue));
-		statsBlock += statFormatFn("Fee", s2btc(d.tx.fee));
-		statsBlock += statFormatFn("Size", d.tx.bytes + " bytes");
-		statsBlock += "</div>";
+		statsBlock = formatStatsBlock([
+			"Inputs", s2btc(d.tx.inputsValue),
+			"Outputs", s2btc(d.tx.outputsValue),
+			"Fee", s2btc(d.tx.fee),
+			"Size", d.tx.bytes + " bytes",
+		])
 
 		var fullHtml = "<div class='message-stream " + d.command + "'>" +
 			"<div class='close-details'>close</div>" +
@@ -99,6 +103,7 @@ function handleWireStreamMessage(e) {
 		$("#messageStream").prepend(el);
 
 		el.click(function () {
+			// TODO(ortutay): get fullHtml from el
 			dupe = $(fullHtml);
 			dupe.addClass("show-details");
 			dupe.find(".close-details").click(function () {
@@ -108,6 +113,45 @@ function handleWireStreamMessage(e) {
 		});
 		
     break;
+
+	case "block":
+		var fullHtml = "<div class='message-stream " + d.command + "'>" +
+			"<div class='close-details'>close</div>" +
+			"<div class='message-stream-left'>" +
+				"<div class='message-stream-cmd'>block</div>" +
+				"<div class='message-stream-datetime'>" + datestr + "</div>" +
+			"</div>" +
+			"<div class='message-stream-main'>" +
+			  "<div class='message-stream-tx-value'>" +
+			    "xxxxxxx" + 
+				"</div>" +
+				"<div class='message-stream-hash'>" + d.block.hash + "</div>" +
+			"</div>" +
+			"<div class='message-stream-tx-details'>" +
+			  "block" + 
+			"</div>" +
+		"</div>";
+
+		statsBlock = formatStatsBlock([
+			"Number of transactions", d.block.numTransactions,
+			"Size", d.block.bytes + " bytes",
+		])
+		
+		var el = $(fullHtml);
+
+		$("#messageStream").prepend(el);
+		
+		el.click(function () {
+			// TODO(ortutay): get fullHtml from el
+			dupe = $(fullHtml);
+			dupe.addClass("show-details");
+			dupe.find(".close-details").click(function () {
+				dupe.remove();
+			})
+			$("body").prepend(dupe);
+		});
+
+		break;
 
   case "inv":
     for (var i = 0; i < d.inv.length; i++) {
