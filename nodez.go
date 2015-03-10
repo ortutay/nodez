@@ -806,17 +806,11 @@ func nodeInfo() (*InfoJSON, error) {
 
 func updateNodeInfo() {
 	for {
-		// infoJSON, err := nodeInfo()
-		// if err != nil {
-		// 	log.Error(err)
-		// 	time.Sleep(1 * time.Second)
-		// 	continue
-		// }
-
-		// For testing
-		infoJSON := &InfoJSON{
-			IP:   *useIP,
-			Port: 8080,
+		infoJSON, err := nodeInfo()
+		if err != nil {
+			log.Error(err)
+			time.Sleep(1 * time.Second)
+			continue
 		}
 
 		latestInfoJSON = *infoJSON
