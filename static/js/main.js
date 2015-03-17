@@ -40,8 +40,8 @@ function handleWireStreamMessage(e) {
   console.log(d)
 
   switch (d.command) {
-  case "sync":
-    return;
+  // case "sync":
+  //   return;
     // item = d.snc
     // el = $("#messageStream").prepend("<div class='message-stream-item'>" + item.hash + "</div>");
 
@@ -114,6 +114,33 @@ function handleWireStreamMessage(e) {
 		
     break;
 
+	case "sync":
+		statsBlock = formatStatsBlock([
+			"Height", d.sync.height,
+		])
+
+		var fullHtml = "<div class='message-stream " + d.command + "'>" +
+			"<div class='close-details'>close</div>" +
+			"<div class='message-stream-main'>" +
+			  "<div class='message-stream-tx-value'>" +
+				  d.dateStr + " " +
+				  "Synchronizing, block #" + d.sync.height + " " +
+				  d.sync.hash + " " +
+				"</div>" +
+			"</div>" +
+			"<div class='message-stream-tx-details'>" +
+			  statsBlock +
+			"</div>" +
+		"</div>";
+
+		var el = $(fullHtml);
+
+		$("#messageStream").prepend(el);
+
+		el.click(function () { toggleDetail(el, fullHtml) });
+
+		break;
+
 	case "block":
 		var sizeStr = "";
 		if (d.block.bytes > 1000) {
@@ -150,6 +177,7 @@ function handleWireStreamMessage(e) {
 		break;
 
   case "inv":
+    return; // TODO(ortutay): handle more message types
     for (var i = 0; i < d.inv.length; i++) {
       item = d.inv[i]
       el = $("#messageStream").prepend(
@@ -161,6 +189,7 @@ function handleWireStreamMessage(e) {
     break;
 
   case "addr":
+    return; // TODO(ortutay): handle more message types
     for (var i = 0; i < d.addresses.length; i++) {
       addr = d.addresses[i]
       el = $("#messageStream").prepend(
@@ -174,6 +203,7 @@ function handleWireStreamMessage(e) {
     break;
 
   default:
+    return; // TODO(ortutay): handle more message types
     el = $("#messageStream").prepend(
       "<div class='message-stream'>" + 
       "<div class='message-stream-cmd'>" + d.command + "</div>" +
@@ -183,7 +213,7 @@ function handleWireStreamMessage(e) {
   // Prune messages to avoid using too much memory. CSS overflow is used
   // for styling.
   var items = $("#messageStream .message-stream-item");
-  for (var i = items.length; i > 500; i--) {
+  for (var i = items.length; i > 200; i--) {
     items.eq(i).remove();
   }
 }

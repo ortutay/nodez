@@ -7,6 +7,11 @@ body {
     overflow: hidden;
 }
 
+.row-wrapper {
+    overflow: hidden;
+    height: 100%;
+}
+
 .row .nodez-col {
 		padding: 0;
 }
@@ -55,6 +60,7 @@ body {
 }
 
 .message-stream-wrapper {
+		overflow: hidden;
 }
 
 .message-stream {

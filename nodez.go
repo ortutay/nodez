@@ -37,6 +37,7 @@ var (
 	bitcoinConf = flag.String("bitcoin_conf", "~/.bitcoin/bitcoin.conf", "Bitcoin configuration file")
 	debugLog    = flag.String("debug_log", "~/.bitcoin/debug.log", "bitcoind debug log")
 	staticDir   = flag.String("static_dir", ".", "Path to static files")
+	templatesPath = flag.String("templates_path", "templates", "Path to templates")
 	testnet     = flag.Bool("testnet", false, "Connect to testnet")
 	useIP       = flag.String("use_ip", "", "Use this IP address instead of querying myexternalip.com")
 	fakeStream  = flag.Bool("fake_stream", false, "Send fake data (for testing)")
@@ -51,6 +52,8 @@ var (
 
 	myIP net.IP
 )
+
+const dateFormat = "2006-01-02 3:04:05"
 
 func main() {
 	flag.Parse()
@@ -189,6 +192,7 @@ type SyncJSON struct {
 	Height    int    `json:"height"`
 	Tx        int    `json:"tx"`
 	Timestamp int64  `json:"timestamp"`
+	DateStr string `json:"dateStr"`
 }
 
 type OutPointJSON struct {
@@ -348,7 +352,7 @@ func handleHome(w http.ResponseWriter, r *http.Request, ctx *Context) error {
 	// 	"/home/marcell/gocode/src/github.com/ortutay/nodez/templates/_base.html",
 	// 	"/home/marcell/gocode/src/github.com/ortutay/nodez/templates/nodez.html"))
 
-	file, err := os.Open("templates/nodez.html")
+	file, err := os.Open(fmt.Sprintf("%s/nodez.html", *templatesPath))
 	if err != nil {
 		return err
 	}
@@ -418,7 +422,7 @@ func msgToJSON(msg wire.Message) (*WireJSON, error) {
 
 	now := time.Now()
 	wireMsg.Timestamp = now.Unix()
-	wireMsg.DateStr = now.Format("2006-01-02 3:04:05")
+	wireMsg.DateStr = now.Format(dateFormat)
 
 	wireMsg.Command = msg.Command()
 	switch msg := msg.(type) {
@@ -745,6 +749,7 @@ func bitcoindDebugLogStream(debugLog string) {
 					Height:    int(height),
 					Tx:        int(tx),
 					Timestamp: date.Unix(),
+					DateStr: date.Format(dateFormat),
 				},
 			}
 			// log.Infof("%v %v %v %v", bestHash, height, tx, date)

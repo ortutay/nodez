@@ -2,60 +2,60 @@
   <head>
     <title>nodez</title>
 
-    <!-- <script src="//ajax.googleapis.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script> -->
-    <script src="/static/js/jquery.min.js"></script>
-		
+    <script src="//ajax.googleapis.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script>
     <script src="/static/js/main.js"></script>
 
-    <!-- <link href="//netdna.bootstrapcdn.com/bootstrap/3.0.3/css/bootstrap.min.css" rel="stylesheet"> -->
-    <link rel="stylesheet" type="text/css" href="/static/css/bootstrap.min.css"/>
-
+    <link href="//netdna.bootstrapcdn.com/bootstrap/3.0.3/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" type="text/css" href="/static/css/main.css"/>
 
   </head>
 
   <body>
 
-		<div class="row">
-			<div class="nodez-col col-md-6">
-				<div class="info">
-					<div class="info-header">
-						<div class="info-addr">
-							<img class="info-bitcoin-logo" src="/static/images/bitcoin.png"/>
-							<span id="addr">&nbsp;</span>
-						</div>
-						<div class="info-net">Bitcoin Core v0.10 Full Node (<span id="net"></span>)</div>
-					</div>
+    <div class="row-wrapper" style="">
 
-					<div class="info-item">
-						<span class="info-label">Height:</span>
-						<span class="info-value" id="height"></span>
-					</div>
-					<div class="info-item">
-						<span class="info-label">Difficulty:</span>
-						<span class="info-value" id="difficulty"></span>
-					</div>
-					<div class="info-item">
-						<span class="info-label">Hash rate:</span>
-						<span class="info-value" id="hashesPerSec"></span>
-					</div>
-					<div class="info-item">
-						<span class="info-label">Connections:</span>
-						<span class="info-value" id="connections"></span>
-					</div>
-					<div class="info-item">
-						<span class="info-label">Received:</span>
-						<span class="info-value" id="bytesRecv"></span>
-					</div>
-					<div class="info-item">
-						<span class="info-label">Sent:</span>
-						<span class="info-value" id="bytesSent"></span>
-					</div>
-				</div>
-			</div>
-			<div class="nodez-col col-md-6">
-				<div id="messageStream" class="message-stream-wrapper"></div>
-			</div>
+		  <div class="row">
+			  <div class="nodez-col col-md-6">
+				  <div class="info">
+					  <div class="info-header">
+						  <div class="info-addr">
+							  <img class="info-bitcoin-logo" src="/static/images/bitcoin.png"/>
+							  <span id="addr">&nbsp;</span>
+						  </div>
+						  <div class="info-net">Bitcoin Core v0.10 Full Node (<span id="net"></span>)</div>
+					  </div>
+
+					  <div class="info-item">
+						  <span class="info-label">Height:</span>
+						  <span class="info-value" id="height"></span>
+					  </div>
+					  <div class="info-item">
+						  <span class="info-label">Difficulty:</span>
+						  <span class="info-value" id="difficulty"></span>
+					  </div>
+					  <div class="info-item">
+						  <span class="info-label">Hash rate:</span>
+						  <span class="info-value" id="hashesPerSec"></span>
+					  </div>
+					  <div class="info-item">
+						  <span class="info-label">Connections:</span>
+						  <span class="info-value" id="connections"></span>
+					  </div>
+					  <div class="info-item">
+						  <span class="info-label">Received:</span>
+						  <span class="info-value" id="bytesRecv"></span>
+					  </div>
+					  <div class="info-item">
+						  <span class="info-label">Sent:</span>
+						  <span class="info-value" id="bytesSent"></span>
+					  </div>
+				  </div>
+			  </div>
+			  <div class="nodez-col col-md-6">
+				  <div id="messageStream" class="message-stream-wrapper">
+			    </div>
+			  </div>
+		  </div>
 		</div>
 
   </body>
