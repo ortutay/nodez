@@ -1,3 +1,5 @@
+var isSyncing = false;
+
 $(document).init(function() {
   var wire = new WebSocket('ws://' + location.host + '/nodez/wire/stream');
   var info = new WebSocket('ws://' + location.host + '/nodez/info/stream');
@@ -221,15 +223,21 @@ function handleWireStreamMessage(e) {
 function handleInfoStreamMessage(e) {
   d = $.parseJSON(e.data);
 
-  // console.log("info: ", d);
+	isSyncing = d.headersHeight && d.height && d.headersHeight - d.height > 5;
+	
+  console.log("info: ", d);
 
-  $("#addr").html(d.ip + ":" + d.port);
+	if (d.ip && d.port) {
+		$("#addr").html(d.ip + ":" + d.port);
+	}
   if (d.testnet) {
-    $("#net").html("testnet");
+    $("#net").html("(testnet)");
   } else {
-    $("#net").html("mainnet");
+    $("#net").html("(mainnet)");
   }
+	$("#version").html("Bitcoin Core v0." + d.version/1000 + " full node")
   $("#height").html(numberWithCommas(d.height));
+  $("#headersHeight").html(numberWithCommas(d.headersHeight));
   $("#difficulty").html(numberWithCommas(Math.round(d.difficulty)));
   $("#hashesPerSec").html(numberWithCommas(Math.round(d.hashesPerSec/1e9)) + " GH/sec");
   $("#connections").html(numberWithCommas(d.connections));

@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"html/template"
@@ -33,16 +34,17 @@ import (
 )
 
 var (
-	port        = flag.String("port", "8080", "Port to listen on")
-	nodeAddr    = flag.String("node_addr", ":8333", "Bitcoin node address")
-	bitcoinConf = flag.String("bitcoin_conf", "~/.bitcoin/bitcoin.conf", "Bitcoin configuration file")
-	debugLog    = flag.String("debug_log", "~/.bitcoin/debug.log", "bitcoind debug log")
-	staticDir   = flag.String("static_dir", ".", "Path to static files")
+	port          = flag.String("port", "8080", "Port to listen on")
+	nodeAddr      = flag.String("node_addr", ":8333", "Bitcoin node address")
+	bitcoinConf   = flag.String("bitcoin_conf", "~/.bitcoin/bitcoin.conf", "Bitcoin configuration file")
+	debugLog      = flag.String("debug_log", "~/.bitcoin/debug.log", "bitcoind debug log")
+	staticDir     = flag.String("static_dir", ".", "Path to static files")
 	templatesPath = flag.String("templates_path", "templates", "Path to templates")
-	testnet     = flag.Bool("testnet", false, "Connect to testnet")
-	useIP       = flag.String("use_ip", "", "Use this IP address instead of querying myexternalip.com")
-	fakeStream  = flag.Bool("fake_stream", false, "Send fake data (for testing)")
-	prof         = flag.String("prof", "", "If non-empty, run profileer and output to this file")
+	testnet       = flag.Bool("testnet", false, "Connect to testnet")
+	useIP         = flag.String("use_ip", "", "Use this IP address instead of querying myexternalip.com")
+	fakeStream    = flag.Bool("fake_stream", false, "Send fake data (for testing)")
+	prof          = flag.String("prof", "", "If non-empty, run profileer and output to this file")
+	bitcoinCLI    = flag.String("bitcoin_cli", "", "If non-empty, use this bitcoin-cli binary for bitcoind JSON-RPC not supported by github.com/btcsuite/btcrpclient")
 
 	bitcoindUpdateTipRE = regexp.MustCompile(
 		`UpdateTip:.*best=([0-9a-f]+).*height=(\d+).*tx=(\d+).*date=(.*) progress`)
@@ -53,6 +55,8 @@ var (
 	latestInfoJSON InfoJSON
 
 	myIP net.IP
+
+	isSyncing = false
 )
 
 const dateFormat = "2006-01-02 3:04:05"
@@ -140,7 +144,7 @@ func main() {
 	} else {
 		go bitcoinStream(wire.ProtocolVersion, btcnet)
 	}
-	// go bitcoindDebugLogStream(*debugLog)
+	go bitcoindDebugLogStream(*debugLog)
 	go updateNodeInfo()
 
 	r := mux.NewRouter()
@@ -203,7 +207,7 @@ type SyncJSON struct {
 	Height    int    `json:"height"`
 	Tx        int    `json:"tx"`
 	Timestamp int64  `json:"timestamp"`
-	DateStr string `json:"dateStr"`
+	DateStr   string `json:"dateStr"`
 }
 
 type OutPointJSON struct {
@@ -283,8 +287,6 @@ func handleWireStream(w http.ResponseWriter, r *http.Request, ctx *Context) erro
 	for {
 		msgJSON := <-ch
 
-		log.Infof("marshalling: %v", msgJSON)
-
 		data, err := json.Marshal(msgJSON)
 		if err != nil {
 			log.Errorf("couldn't marshal JSON %v: %s", msgJSON, err)
@@ -305,6 +307,7 @@ type InfoJSON struct {
 	TestNet             bool    `json:"testNet"`              // getinfo "testnet"
 	Version             int32   `json:"version"`              // getinfo "version"
 	Height              int32   `json:"height"`               // getinfo "blocks"
+	HeadersHeight       int32   `json:"headersHeight"`        // getchaintips, "headers-only" section
 	Connections         int32   `json:"connections"`          // getinfo "connections"
 	Difficulty          float64 `json:"difficulty"`           // getinfo "difficulty"
 	HashesPerSec        int64   `json:"hashesPerSec"`         // getmininginfo "networkhashps"
@@ -336,7 +339,6 @@ func handleInfoStream(w http.ResponseWriter, r *http.Request, ctx *Context) erro
 		time.Sleep(1000 * time.Millisecond)
 		infoJSON := latestInfoJSON
 
-		log.Infof("marshal %v", infoJSON)
 		data, err := json.Marshal(infoJSON)
 		if err != nil {
 			log.Errorf("couldn't marshal JSON %v: %s", infoJSON, err)
@@ -724,54 +726,62 @@ func bitcoinStream(pver uint32, btcnet wire.BitcoinNet) {
 
 func bitcoindDebugLogStream(debugLog string) {
 	log.Infof("Streaming %v", debugLog)
-	cmd := exec.Command("tail", "-f", debugLog)
+	for {
+		cmd := exec.Command("tail", "-f", debugLog)
 
-	out, err := cmd.StdoutPipe()
-	if err != nil {
-		log.Fatal("Couldn't get stdout for bitcoind debug log: %s", err)
-	}
+		out, err := cmd.StdoutPipe()
+		if err != nil {
+			log.Fatal("Couldn't get stdout for bitcoind debug log: %s", err)
+		}
 
-	if err := cmd.Start(); err != nil {
-		log.Fatal("Couldn't stream bitcoind debug log: %s", err)
-	}
+		if err := cmd.Start(); err != nil {
+			log.Fatal("Couldn't stream bitcoind debug log: %s", err)
+		}
 
-	scanner := bufio.NewScanner(out)
-	for scanner.Scan() {
-		t := scanner.Text()
-		m := bitcoindUpdateTipRE.FindStringSubmatch(t)
-
-		if m != nil {
-			bestHash, heightStr, txStr, dateStr := m[1], m[2], m[3], m[4]
-
-			height, err := strconv.ParseInt(heightStr, 10, 64)
-			if err != nil {
-				log.Errorf("Couldn't parse height %s: %s", heightStr, err)
+		scanner := bufio.NewScanner(out)
+		for scanner.Scan() {
+			// We only need the debug log to stream sync output
+			if !isSyncing {
+				time.Sleep(5 * time.Second)
+				break
 			}
 
-			tx, err := strconv.ParseInt(txStr, 10, 64)
-			if err != nil {
-				log.Errorf("Couldn't parse tx %s: %s", txStr, err)
-			}
+			t := scanner.Text()
+			m := bitcoindUpdateTipRE.FindStringSubmatch(t)
 
-			date, err := time.Parse(bitcoindDateLayout, dateStr)
-			if err != nil {
-				log.Errorf("Couldn't parse date %s: %s", dateStr, err)
-			}
+			if m != nil {
+				bestHash, heightStr, txStr, dateStr := m[1], m[2], m[3], m[4]
 
-			wireJSON := &WireJSON{
-				Command: "sync",
-				Sync: &SyncJSON{
-					Hash:      bestHash,
-					Height:    int(height),
-					Tx:        int(tx),
-					Timestamp: date.Unix(),
-					DateStr: date.Format(dateFormat),
-				},
-			}
-			// log.Infof("%v %v %v %v", bestHash, height, tx, date)
+				height, err := strconv.ParseInt(heightStr, 10, 64)
+				if err != nil {
+					log.Errorf("Couldn't parse height %s: %s", heightStr, err)
+				}
 
-			for _, ch := range msgChans {
-				ch <- wireJSON
+				tx, err := strconv.ParseInt(txStr, 10, 64)
+				if err != nil {
+					log.Errorf("Couldn't parse tx %s: %s", txStr, err)
+				}
+
+				date, err := time.Parse(bitcoindDateLayout, dateStr)
+				if err != nil {
+					log.Errorf("Couldn't parse date %s: %s", dateStr, err)
+				}
+
+				wireJSON := &WireJSON{
+					Command: "sync",
+					Sync: &SyncJSON{
+						Hash:      bestHash,
+						Height:    int(height),
+						Tx:        int(tx),
+						Timestamp: date.Unix(),
+						DateStr:   date.Format(dateFormat),
+					},
+				}
+				// log.Infof("%v %v %v %v", bestHash, height, tx, date)
+
+				for _, ch := range msgChans {
+					ch <- wireJSON
+				}
 			}
 		}
 	}
@@ -822,7 +832,56 @@ func nodeInfo() (*InfoJSON, error) {
 	infoJSON.BytesRecv = netTotalsInfo.TotalBytesRecv
 	infoJSON.BytesSent = netTotalsInfo.TotalBytesSent
 
+	rawTips, err := getChainTips()
+	if err != nil {
+		log.Error(err)
+	} else {
+		var tips []chainTipJSON
+		if err := json.Unmarshal(rawTips, &tips); err != nil {
+			return nil, fmt.Errorf("couldn't unmarshal %s: %s", string(rawTips), err)
+		}
+		for _, tip := range tips {
+			switch tip.Status {
+			case "headers-only", "valid-headers":
+				if tip.Height > infoJSON.HeadersHeight {
+					infoJSON.HeadersHeight = tip.Height
+				}
+			}
+		}
+	}
+
+	isSyncing = infoJSON.Height != 0 && infoJSON.HeadersHeight != 0 && infoJSON.HeadersHeight-infoJSON.Height > 5
+
 	return &infoJSON, nil
+}
+
+type chainTipJSON struct {
+	Height    int32  `json:"height"`
+	Hash      string `json:"string"`
+	BranchLen int32  `json:"branchlen"`
+	Status    string `json:"status"`
+}
+
+var errNoBitcoinCLI = errors.New("no bitcoin-cli available")
+
+func getChainTips() ([]byte, error) {
+	if *bitcoinCLI == "" {
+		return nil, errNoBitcoinCLI
+	}
+
+	var args []string
+	if *testnet {
+		args = append(args, "-testnet")
+	}
+	args = append(args, "getchaintips")
+	cmd := exec.Command(*bitcoinCLI, args...)
+
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("couldn't get output %s %v: %s", *bitcoinCLI, args, err)
+	}
+
+	return out, nil
 }
 
 func updateNodeInfo() {
@@ -835,7 +894,7 @@ func updateNodeInfo() {
 		}
 
 		latestInfoJSON = *infoJSON
-		time.Sleep(1000 * time.Millisecond)
+		time.Sleep(2000 * time.Millisecond)
 	}
 }
 
