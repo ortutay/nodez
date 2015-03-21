@@ -26,6 +26,7 @@ import (
 	"github.com/btcsuite/btcd/wire"
 	"github.com/btcsuite/btcrpcclient"
 	"github.com/btcsuite/btcutil"
+	"github.com/davecheney/profile"
 	log "github.com/golang/glog"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
@@ -41,6 +42,7 @@ var (
 	testnet     = flag.Bool("testnet", false, "Connect to testnet")
 	useIP       = flag.String("use_ip", "", "Use this IP address instead of querying myexternalip.com")
 	fakeStream  = flag.Bool("fake_stream", false, "Send fake data (for testing)")
+	prof         = flag.String("prof", "", "If non-empty, run profileer and output to this file")
 
 	bitcoindUpdateTipRE = regexp.MustCompile(
 		`UpdateTip:.*best=([0-9a-f]+).*height=(\d+).*tx=(\d+).*date=(.*) progress`)
@@ -138,7 +140,7 @@ func main() {
 	} else {
 		go bitcoinStream(wire.ProtocolVersion, btcnet)
 	}
-	go bitcoindDebugLogStream(*debugLog)
+	// go bitcoindDebugLogStream(*debugLog)
 	go updateNodeInfo()
 
 	r := mux.NewRouter()
@@ -153,6 +155,15 @@ func main() {
 
 	http.Handle("/static/", http.FileServer(http.Dir(*staticDir)))
 	http.Handle("/", r)
+
+	if *prof != "" {
+		conf := &profile.Config{
+			CPUProfile:  true,
+			MemProfile:  true,
+			ProfilePath: *prof,
+		}
+		defer profile.Start(conf).Stop()
+	}
 
 	log.Infof("Listening at %v...", *port)
 	if err := http.ListenAndServe(":"+*port, nil); err != nil {
@@ -272,6 +283,8 @@ func handleWireStream(w http.ResponseWriter, r *http.Request, ctx *Context) erro
 	for {
 		msgJSON := <-ch
 
+		log.Infof("marshalling: %v", msgJSON)
+
 		data, err := json.Marshal(msgJSON)
 		if err != nil {
 			log.Errorf("couldn't marshal JSON %v: %s", msgJSON, err)
@@ -320,8 +333,10 @@ func handleInfoStream(w http.ResponseWriter, r *http.Request, ctx *Context) erro
 
 	prevData := []byte("")
 	for {
+		time.Sleep(1000 * time.Millisecond)
 		infoJSON := latestInfoJSON
 
+		log.Infof("marshal %v", infoJSON)
 		data, err := json.Marshal(infoJSON)
 		if err != nil {
 			log.Errorf("couldn't marshal JSON %v: %s", infoJSON, err)
@@ -648,6 +663,7 @@ func bitcoinStream(pver uint32, btcnet wire.BitcoinNet) {
 	// Try to connect to local bitcoin node
 	var conn net.Conn
 	var errJSON *WireJSON
+
 	for {
 		if conn != nil {
 			conn.Close()
@@ -692,14 +708,14 @@ func bitcoinStream(pver uint32, btcnet wire.BitcoinNet) {
 			if err != nil {
 				log.Errorf("bitcoin node read gave: %s", err)
 				errJSON = &WireJSON{Command: "error", Message: "bitcoin node error"}
-				continue
+				break
 			}
 
 			msgJSON, err := msgToJSON(msg)
 			if err != nil {
 				log.Errorf("couldn't convert %v to JSON: %s", msg, err)
 				errJSON = &WireJSON{Command: "error", Message: "serialization error"}
-				continue
+				break
 			}
 			writeToChannels(msgJSON)
 		}

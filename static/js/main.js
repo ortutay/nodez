@@ -37,7 +37,7 @@ function formatStatsBlock(data) {
 function handleWireStreamMessage(e) {
   d = $.parseJSON(e.data)
 
-  console.log(d)
+  // console.log(d)
 
   switch (d.command) {
   // case "sync":
