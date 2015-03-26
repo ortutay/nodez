@@ -5,4 +5,4 @@ nodez
 
 A simple dashboard for bitcoin full nodes.
 
-[![Launch on PeerVM](https://s3-us-west-2.amazonaws.com/peervm/peervm_button.png)](http://ghostvm.com/bitcoind?ref=marcell.ortutay@gmail.com)
+[![Launch on PeerVM](https://s3-us-west-2.amazonaws.com/peervm/peervm_button.png)](http://peervm.com/bitcoind?ref=marcell.ortutay@gmail.com)
