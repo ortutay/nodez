@@ -121,6 +121,47 @@ function handleWireStreamMessage(e) {
 			"Height", d.sync.height,
 		])
 
+		var yearsBehind = Math.round((d.timestamp - d.sync.timestamp) / (365 * 24 * 3600));
+		var daysBehind = Math.round((d.timestamp - d.sync.timestamp) / (24 * 3600));
+		var hoursBehind = Math.round(((d.timestamp - d.sync.timestamp) % (24 * 3600))/3600);
+
+    var units = [
+      365 * 24 * 3600, null,            "year",
+      24 * 3600,       365 * 24 * 3600, "day",
+      3600,            24 * 3600,       "hour"
+    ];
+
+    var diff = d.timestamp - d.sync.timestamp;
+    var behindHtml = "";
+    for (var i = 0; i < units.length; i += 3) {
+      var div = units[i];
+      var mod = units[i+1];
+      var unit = units[i+2];
+      if (diff / div <= 0) {
+        continue;
+      }
+      var val;
+      if (mod == null) {
+        val = Math.floor(diff / div);
+      } else {
+        val = Math.floor((diff % mod) / div);
+      }
+      if (val == 0) {
+        continue;
+      }
+      if (behindHtml != "") {
+        behindHtml += ", ";
+      }
+      behindHtml += val + " " + unit;
+      if (val > 1) {
+        behindHtml += "s";
+      }
+    }
+    if (behindHtml != "") {
+      behindHtml = "<img src='/static/images/loading.gif'> " + behindHtml + " behind";
+    }
+		$("#syncBehind").html(behindHtml);
+
 		var fullHtml = "<div class='message-stream " + d.command + "'>" +
 			"<div class='close-details'>close</div>" +
 			"<div class='message-stream-main'>" +
@@ -214,8 +255,8 @@ function handleWireStreamMessage(e) {
   }
   // Prune messages to avoid using too much memory. CSS overflow is used
   // for styling.
-  var items = $("#messageStream .message-stream-item");
-  for (var i = items.length; i > 200; i--) {
+  var items = $("#messageStream .message-stream");
+  for (var i = items.length; i > 80; i--) {
     items.eq(i).remove();
   }
 }
@@ -224,8 +265,14 @@ function handleInfoStreamMessage(e) {
   d = $.parseJSON(e.data);
 
 	isSyncing = d.headersHeight && d.height && d.headersHeight - d.height > 5;
+
+  if (isSyncing) {
+    $("#syncBehind").show();
+  } else {
+    $("#syncBehind").hide();
+  }
 	
-  console.log("info: ", d);
+  // console.log("info: ", d);
 
 	if (d.ip && d.port) {
 		$("#addr").html(d.ip + ":" + d.port);
@@ -235,7 +282,7 @@ function handleInfoStreamMessage(e) {
   } else {
     $("#net").html("(mainnet)");
   }
-	$("#version").html("Bitcoin Core v0." + d.version/1000 + " full node")
+	$("#version").html("Bitcoin Core v0." + d.version/10000 + " full node")
   $("#height").html(numberWithCommas(d.height));
   $("#headersHeight").html(numberWithCommas(d.headersHeight));
   $("#difficulty").html(numberWithCommas(Math.round(d.difficulty)));

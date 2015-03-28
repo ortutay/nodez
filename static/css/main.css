@@ -50,13 +50,19 @@ body {
 }
 
 .info-addr {
-    font-size: 48px;
+    font-size: 42px;
     font-weight: bold;
 }
 
 .info-net {
     font-size: 16px;
     color: #999;
+}
+
+.info-sync-behind {
+    font-size: 14px;
+    font-weight: bold;
+    margin-top: 10px;
 }
 
 .message-stream-wrapper {

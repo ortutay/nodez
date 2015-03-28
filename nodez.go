@@ -767,8 +767,11 @@ func bitcoindDebugLogStream(debugLog string) {
 					log.Errorf("Couldn't parse date %s: %s", dateStr, err)
 				}
 
+				now := time.Now()
 				wireJSON := &WireJSON{
 					Command: "sync",
+					Timestamp: now.Unix(),
+					DateStr: now.Format(dateFormat),
 					Sync: &SyncJSON{
 						Hash:      bestHash,
 						Height:    int(height),
@@ -778,10 +781,7 @@ func bitcoindDebugLogStream(debugLog string) {
 					},
 				}
 				// log.Infof("%v %v %v %v", bestHash, height, tx, date)
-
-				for _, ch := range msgChans {
-					ch <- wireJSON
-				}
+				writeToChannels(wireJSON)
 			}
 		}
 	}
@@ -873,6 +873,7 @@ func getChainTips() ([]byte, error) {
 	if *testnet {
 		args = append(args, "-testnet")
 	}
+	args = append(args, "-conf=" + *bitcoinConf)
 	args = append(args, "getchaintips")
 	cmd := exec.Command(*bitcoinCLI, args...)
 
