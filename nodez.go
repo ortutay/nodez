@@ -743,7 +743,7 @@ func bitcoindDebugLogStream(debugLog string) {
 			// We only need the debug log to stream sync output
 			if !isSyncing {
 				time.Sleep(5 * time.Second)
-				break
+				continue
 			}
 
 			t := scanner.Text()
