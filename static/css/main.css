@@ -5,21 +5,30 @@ body {
     margin: 0;
     padding: 0;
     overflow: hidden;
+    font-size: 14px;
 }
 
-.row-wrapper {
+.nodez-wrapper {
+    display: table;
     overflow: hidden;
+    width: 100%;
     height: 100%;
+    white-space: nowrap;
 }
 
-.row .nodez-col {
-		padding: 0;
+.nodez-wrapper .nodez-col {
+    width: 50%;
+    height: 100%;
+    display: table-cell;
+    vertical-align: top;
+}
+
+.nodez-wrapper .nodez-col.nodez-col-info {
+    vertical-align: middle;
+    background-color: #444;
 }
 
 .info {
-		height: 100%;
-		padding-top: 100px; /* TODO(ortutay): figure out how to vertically align */
-    background-color: #444;
 }
 
 .info-header {
@@ -128,11 +137,14 @@ body {
 }
 
 .close-details {
-		display: none;
-		margin: 4px;
 		cursor: pointer;
-		float: right;
+		display: none;
 		font-size: 12px;
+		margin: 4px;
+    margin-right: 20px;
+    position: absolute;
+    right: 0;
+    width: 40px;
 }
 
 .close-details:hover {
