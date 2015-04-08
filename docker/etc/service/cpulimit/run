@@ -1,0 +1,2 @@
+#!/bin/sh
+exec cpulimit --limit=80 --exe=/home/bitcoin/bitcoin-0.10.0/bin/bitcoind

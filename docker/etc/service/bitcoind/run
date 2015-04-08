@@ -1,0 +1,7 @@
+#!/bin/sh
+if [ ! -f /home/bitcoin/.bitcoin/bitcoin.conf ] ; then
+   echo "rpcuser=`openssl rand -hex 32`" > /home/bitcoin/.bitcoin/bitcoin.conf
+   echo "rpcpassword=`openssl rand -hex 32`" >> /home/bitcoin/.bitcoin/bitcoin.conf
+fi
+
+exec /home/bitcoin/bitcoin-0.10.0/bin/bitcoind -whitelist=127.0.0.1 -datadir=/home/bitcoin/.bitcoin

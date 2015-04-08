@@ -1,0 +1,2 @@
+#!/bin/sh
+/nodez -alsologtostderr -templates_path=/templates/ -static_dir=/ -bitcoin_conf=/home/bitcoin/.bitcoin/bitcoin.conf -debug_log=/home/bitcoin/.bitcoin/debug.log -bitcoin_cli=/home/bitcoin/bitcoin-0.10.0/bin/bitcoin-cli
