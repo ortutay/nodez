@@ -1,5 +1,7 @@
 FROM ortutay/bitcoind
 
+RUN apt-get install cpulimit
+
 ADD nodez_bin /nodez
 ADD templates /templates
 ADD static /static
