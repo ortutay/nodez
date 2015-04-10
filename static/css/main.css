@@ -29,6 +29,9 @@ body {
 }
 
 .info {
+    width: 50%;
+    position: absolute;
+    top: 100px;
 }
 
 .info-header {

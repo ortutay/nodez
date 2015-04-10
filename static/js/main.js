@@ -6,7 +6,15 @@ $(document).init(function() {
 
   wire.onmessage = handleWireStreamMessage
   info.onmessage = handleInfoStreamMessage
+
+  $(window).on('resize', handleResize)
+  handleResize();
 });
+
+function handleResize(e) {
+  console.log((window.innerHeight - $("#info").height())/2);
+  $("#info").css("top", (window.innerHeight - $("#info").height())/2);
+}
 
 function toggleDetail(el, html) {
 	// TODO(ortutay): get fullHtml from el
